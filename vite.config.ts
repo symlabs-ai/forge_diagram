@@ -11,12 +11,18 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       optimizeDeps: {
-        include: ['mermaid'],
+        include: ['mermaid', 'cytoscape'],
       },
       build: {
         commonjsOptions: {
           include: [/node_modules/],
           transformMixedEsModules: true,
+        },
+        rollupOptions: {
+          onwarn(warning, warn) {
+            if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
+            warn(warning);
+          },
         },
       },
       define: {
@@ -26,6 +32,8 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+          'cytoscape/dist/cytoscape.umd.js': path.resolve(__dirname, 'node_modules/cytoscape/dist/cytoscape.esm.mjs'),
+          'cytoscape/dist/cytoscape.esm.min.js': path.resolve(__dirname, 'node_modules/cytoscape/dist/cytoscape.esm.min.mjs'),
         }
       }
     };
