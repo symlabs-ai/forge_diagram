@@ -429,10 +429,10 @@ const App: React.FC = () => {
                 onTransformed={handleTransformChange}
               >
                 <TransformComponent
-                  wrapperStyle={{ width: "100%", height: "100%", overflow: "visible" }}
-                  contentStyle={{ overflow: "visible" }}
+                  wrapperStyle={{ width: "100%", height: "100%" }}
+                  contentStyle={{ width: "100%", height: "100%" }}
                   wrapperClass="w-full h-full"
-                  contentClass="flex items-center justify-center"
+                  contentClass="w-full h-full flex items-center justify-center"
                 >
                    <InnerMermaidRenderer
                      key={refreshKey}
@@ -735,17 +735,18 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
 
         if (cancelled) return;
 
-        // Adjust SVG to prevent clipping - remove fixed dimensions and add overflow visible
-        const adjustedSvg = svg
-          .replace(/(<svg[^>]*)\s+width="[^"]*"/gi, '$1')
-          .replace(/(<svg[^>]*)\s+height="[^"]*"/gi, '$1')
-          .replace(/(<svg[^>]*)\s+style="[^"]*"/gi, '$1 style="overflow: visible; max-width: none;"')
-          .replace(/(<svg)([^>]*>)/gi, (match, p1, p2) => {
-            if (!match.includes('style=')) {
-              return `${p1} style="overflow: visible; max-width: none;"${p2}`;
+        // Add overflow visible to SVG to prevent clipping when panning
+        const adjustedSvg = svg.replace(
+          /<svg([^>]*)>/i,
+          (match, attrs) => {
+            // Add or update style attribute
+            if (attrs.includes('style="')) {
+              return match.replace(/style="([^"]*)"/i, 'style="$1; overflow: visible;"');
+            } else {
+              return `<svg${attrs} style="overflow: visible;">`;
             }
-            return match;
-          });
+          }
+        );
 
         setSvgContent(adjustedSvg);
         onSuccess();
@@ -1040,11 +1041,10 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
   }
 
   return (
-    <div className="relative" style={{ overflow: 'visible' }}>
+    <div className="relative w-full h-full">
       <div
         ref={containerRef}
-        className="flex items-center justify-center"
-        style={{ overflow: 'visible' }}
+        className="w-full h-full flex items-center justify-center [&>svg]:overflow-visible"
         dangerouslySetInnerHTML={{ __html: svgContent }}
       />
 
