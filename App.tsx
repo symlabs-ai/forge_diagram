@@ -1,21 +1,63 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Editor } from './components/Editor';
 import { Toolbar } from './components/Toolbar';
+import { SaveDialog, LoadDialog, RecoveryDialog } from './components/SaveLoadDialog';
 import { detectOrientation, toggleOrientationInCode, INITIAL_CODE } from './utils/mermaidUtils';
 import { Orientation } from './types';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import * as d3 from "d3";
+import { useExport } from './hooks/useExport';
+import { useHistory } from './hooks/useHistory';
+import { useDiagramStorage } from './hooks/useDiagramStorage';
 
 const App: React.FC = () => {
-  const [code, setCode] = useState<string>(INITIAL_CODE);
   const [error, setError] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [orientation, setOrientation] = useState<Orientation>('TD');
   const [isDraggingNode, setIsDraggingNode] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
+  // Dialog states
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
+
+  // SVG content ref for export
+  const svgContentRef = useRef<string>('');
+
+  // History hook for undo/redo
+  const history = useHistory(INITIAL_CODE);
+  const code = history.value;
+
   // Ref for the zoom wrapper instance
   const transformComponentRef = useRef<ReactZoomPanPinchRef | null>(null);
+
+  // Storage hook
+  const storage = useDiagramStorage({
+    code,
+    onLoadDiagram: useCallback((newCode: string) => {
+      history.clear(newCode);
+      setRefreshKey(prev => prev + 1);
+    }, [history]),
+  });
+
+  // Export hook
+  const exportHook = useExport({
+    getSvgContent: useCallback(() => svgContentRef.current || null, []),
+    onPrint: useCallback(() => {
+      if (transformComponentRef.current) {
+        transformComponentRef.current.resetTransform();
+      }
+      setTimeout(() => window.print(), 100);
+    }, []),
+  });
+
+  // Show recovery dialog if there's recovered code
+  useEffect(() => {
+    if (storage.recoveredCode) {
+      setShowRecoveryDialog(true);
+    }
+  }, [storage.recoveredCode]);
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1);
@@ -24,6 +66,11 @@ const App: React.FC = () => {
   // Callbacks estáveis para evitar re-renders desnecessários
   const handleRenderError = React.useCallback((msg: string) => setError(msg), []);
   const handleRenderSuccess = React.useCallback(() => setError(null), []);
+
+  // Callback to update SVG content ref
+  const handleSvgUpdate = useCallback((svg: string) => {
+    svgContentRef.current = svg;
+  }, []);
 
   // Toggle Dark Mode
   useEffect(() => {
@@ -41,15 +88,15 @@ const App: React.FC = () => {
   }, [code]);
 
   const handleCodeChange = React.useCallback((newCode: string) => {
-    setCode(newCode);
+    history.setValue(newCode);
     setError(null);
-  }, []);
+  }, [history]);
 
   const handleToggleOrientation = () => {
     // Detecta orientação diretamente do código atual (evita estado dessincronizado)
     const currentDir = detectOrientation(code);
     const newCode = toggleOrientationInCode(code, currentDir);
-    setCode(newCode);
+    history.setValue(newCode);
     // Força refresh do componente para limpar cache do Mermaid
     setRefreshKey(prev => prev + 1);
   };
@@ -62,6 +109,33 @@ const App: React.FC = () => {
       window.print();
     }, 100);
   };
+
+  // Save/Load handlers
+  const handleSave = useCallback(() => setShowSaveDialog(true), []);
+  const handleLoad = useCallback(() => {
+    storage.refresh();
+    setShowLoadDialog(true);
+  }, [storage]);
+
+  const handleSaveConfirm = useCallback((name: string) => {
+    storage.save(name);
+    setShowSaveDialog(false);
+  }, [storage]);
+
+  // Recovery handlers
+  const handleRecover = useCallback(() => {
+    if (storage.recoveredCode) {
+      history.clear(storage.recoveredCode);
+      setRefreshKey(prev => prev + 1);
+    }
+    storage.clearRecoveredCode();
+    setShowRecoveryDialog(false);
+  }, [storage, history]);
+
+  const handleDiscardRecovery = useCallback(() => {
+    storage.clearRecoveredCode();
+    setShowRecoveryDialog(false);
+  }, [storage]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-darker text-slate-900 dark:text-gray-100">
@@ -77,6 +151,19 @@ const App: React.FC = () => {
         zoomIn={() => transformComponentRef.current?.zoomIn()}
         zoomOut={() => transformComponentRef.current?.zoomOut()}
         resetTransform={() => transformComponentRef.current?.resetTransform()}
+        // Export
+        onExportPng={exportHook.exportPng}
+        onExportSvg={exportHook.exportSvg}
+        onCopySvg={exportHook.copySvg}
+        // Persistence
+        onSave={handleSave}
+        onLoad={handleLoad}
+        onUndo={history.undo}
+        onRedo={history.redo}
+        canUndo={history.canUndo}
+        canRedo={history.canRedo}
+        autoSaveEnabled={storage.autoSaveEnabled}
+        onToggleAutoSave={storage.toggleAutoSave}
       />
 
       <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
@@ -118,12 +205,35 @@ const App: React.FC = () => {
                      onSuccess={handleRenderSuccess}
                      setIsDraggingNode={setIsDraggingNode}
                      onCodeChange={handleCodeChange}
+                     onSvgUpdate={handleSvgUpdate}
                    />
                 </TransformComponent>
             </TransformWrapper>
           </div>
         </div>
       </div>
+
+      {/* Dialogs */}
+      <SaveDialog
+        isOpen={showSaveDialog}
+        onClose={() => setShowSaveDialog(false)}
+        onSave={handleSaveConfirm}
+        isDarkMode={isDarkMode}
+      />
+      <LoadDialog
+        isOpen={showLoadDialog}
+        onClose={() => setShowLoadDialog(false)}
+        onLoad={storage.load}
+        onDelete={storage.remove}
+        diagrams={storage.diagrams}
+        isDarkMode={isDarkMode}
+      />
+      <RecoveryDialog
+        isOpen={showRecoveryDialog}
+        onRecover={handleRecover}
+        onDiscard={handleDiscardRecovery}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };
@@ -254,12 +364,21 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
   onError,
   onSuccess,
   setIsDraggingNode,
-  onCodeChange
+  onCodeChange,
+  onSvgUpdate
 }) => {
   const [svgContent, setSvgContent] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isEditingRef = useRef<boolean>(false);
+
+  // Notify parent of SVG content changes for export
+  useEffect(() => {
+    if (onSvgUpdate && svgContent) {
+      onSvgUpdate(svgContent);
+    }
+  }, [svgContent, onSvgUpdate]);
+
   const [editState, setEditState] = useState<EditState>({
     isEditing: false,
     originalName: '',
