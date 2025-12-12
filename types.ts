@@ -18,6 +18,7 @@ export interface PreviewProps {
   onError: (error: string) => void;
   onSuccess: () => void;
   setIsDraggingNode: (isDragging: boolean) => void;
+  onCodeChange: (newCode: string) => void;
 }
 
 export interface ToolbarProps {

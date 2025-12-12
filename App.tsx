@@ -21,6 +21,10 @@ const App: React.FC = () => {
     setRefreshKey(prev => prev + 1);
   };
 
+  // Callbacks estáveis para evitar re-renders desnecessários
+  const handleRenderError = React.useCallback((msg: string) => setError(msg), []);
+  const handleRenderSuccess = React.useCallback(() => setError(null), []);
+
   // Toggle Dark Mode
   useEffect(() => {
     if (isDarkMode) {
@@ -36,10 +40,10 @@ const App: React.FC = () => {
     setOrientation(currentDir);
   }, [code]);
 
-  const handleCodeChange = (newCode: string) => {
+  const handleCodeChange = React.useCallback((newCode: string) => {
     setCode(newCode);
-    setError(null); 
-  };
+    setError(null);
+  }, []);
 
   const handleToggleOrientation = () => {
     // Detecta orientação diretamente do código atual (evita estado dessincronizado)
@@ -97,6 +101,7 @@ const App: React.FC = () => {
                 centerOnInit={true}
                 limitToBounds={false}
                 wheel={{ step: 0.1 }}
+                doubleClick={{ disabled: true }}
                 disabled={isDraggingNode}
               >
                 <TransformComponent
@@ -109,9 +114,10 @@ const App: React.FC = () => {
                      key={refreshKey}
                      code={code}
                      isDarkMode={isDarkMode}
-                     onError={setError}
-                     onSuccess={() => setError(null)}
+                     onError={handleRenderError}
+                     onSuccess={handleRenderSuccess}
                      setIsDraggingNode={setIsDraggingNode}
+                     onCodeChange={handleCodeChange}
                    />
                 </TransformComponent>
             </TransformWrapper>
@@ -210,30 +216,69 @@ const getIntersection = (rect: any, targetCenter: {cx: number, cy: number}) => {
 // Contador global para IDs únicos
 let globalRenderCounter = 0;
 
+// Extrai o nome da classe/nó do elemento SVG (fora do componente para evitar recriação)
+const extractNodeName = (nodeElement: Element): string => {
+  // Para classDiagram, o nome está em .classTitle ou em text elements
+  const classTitle = nodeElement.querySelector('.classTitle');
+  if (classTitle) {
+    return classTitle.textContent?.trim() || '';
+  }
+
+  // Para flowchart/graph, o texto está em .nodeLabel ou spans
+  const nodeLabel = nodeElement.querySelector('.nodeLabel');
+  if (nodeLabel) {
+    return nodeLabel.textContent?.trim() || '';
+  }
+
+  // Fallback: procura qualquer texto
+  const textEl = nodeElement.querySelector('text, span');
+  if (textEl) {
+    return textEl.textContent?.trim() || '';
+  }
+
+  return '';
+};
+
+// Interface para estado de edição inline
+interface EditState {
+  isEditing: boolean;
+  originalName: string;
+  currentValue: string;
+  position: { x: number; y: number };
+  nodeElement: Element | null;
+}
+
 const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
   code,
   isDarkMode,
   onError,
   onSuccess,
-  setIsDraggingNode
+  setIsDraggingNode,
+  onCodeChange
 }) => {
   const [svgContent, setSvgContent] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isEditingRef = useRef<boolean>(false);
+  const [editState, setEditState] = useState<EditState>({
+    isEditing: false,
+    originalName: '',
+    currentValue: '',
+    position: { x: 0, y: 0 },
+    nodeElement: null
+  });
 
   // Renderiza quando code ou isDarkMode mudam
   useEffect(() => {
     let cancelled = false;
 
     const renderDiagram = async () => {
-      console.log('renderDiagram called, code length:', code.length);
+      console.log('renderDiagram triggered');
 
       if (!code.trim()) {
         setSvgContent('');
         return;
       }
-
-      // Limpa SVG atual primeiro
-      setSvgContent('');
 
       // Limpa TODOS os elementos mermaid do DOM
       document.querySelectorAll('[id^="mermaid"]').forEach(el => el.remove());
@@ -306,15 +351,76 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
     };
   }, [code, isDarkMode, onError, onSuccess]);
 
+  // Salva a edição e atualiza o código
+  const handleSaveEdit = () => {
+    if (!editState.isEditing || !editState.originalName) return;
+
+    const newName = editState.currentValue.trim();
+    if (newName && newName !== editState.originalName) {
+      // Escapa caracteres especiais para regex
+      const escapedOriginal = editState.originalName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Substitui todas as ocorrências do nome original pelo novo nome
+      // Usa word boundary para não substituir partes de outras palavras
+      const regex = new RegExp(`\\b${escapedOriginal}\\b`, 'g');
+      const newCode = code.replace(regex, newName);
+      onCodeChange(newCode);
+    }
+
+    setEditState({
+      isEditing: false,
+      originalName: '',
+      currentValue: '',
+      position: { x: 0, y: 0 },
+      nodeElement: null
+    });
+  };
+
+  // Cancela a edição
+  const handleCancelEdit = () => {
+    setEditState({
+      isEditing: false,
+      originalName: '',
+      currentValue: '',
+      position: { x: 0, y: 0 },
+      nodeElement: null
+    });
+  };
+
+  // Focus no input quando começar a editar (com delay para evitar blur imediato)
+  useEffect(() => {
+    if (editState.isEditing && inputRef.current) {
+      // Pequeno delay para garantir que o input está renderizado
+      const timer = setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [editState.isEditing]);
+
+  // Atualiza ref quando editState muda
+  useEffect(() => {
+    isEditingRef.current = editState.isEditing;
+  }, [editState.isEditing]);
+
   // D3 Logic
   useEffect(() => {
+    console.log('D3 useEffect triggered, svgContent length:', svgContent.length);
+
     if (!containerRef.current || !svgContent) return;
 
     const div = d3.select(containerRef.current);
     const svg = div.select("svg");
-    if (svg.empty()) return;
+    if (svg.empty()) {
+      console.log('SVG is empty!');
+      return;
+    }
 
+    console.log('Setting up D3 handlers');
     const nodes = svg.selectAll(".node");
+    console.log('Found nodes:', nodes.size());
     // Select path elements directly under .edgePaths (handles different mermaid versions)
     const edges = svg.selectAll(".edgePaths path"); 
     const labels = svg.selectAll(".edgeLabels .edgeLabel");
@@ -461,7 +567,8 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
     };
 
     const dragBehavior = d3.drag()
-      .on("start", function() {
+      .on("start", function(event: any) {
+        console.log('Drag start');
         d3.select(this).raise().classed("active", true).style("cursor", "grabbing");
         setIsDraggingNode(true);
       })
@@ -491,6 +598,37 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
 
     nodes.style("cursor", "grab").call(dragBehavior as any);
 
+    // Double-click para editar nome do nó
+    nodes.on("dblclick", function(event: any) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      // Ignora se já estiver editando
+      if (isEditingRef.current) return;
+
+      const nodeElement = this as Element;
+      const nodeName = extractNodeName(nodeElement);
+
+      if (!nodeName) return;
+
+      // Calcula posição do input baseado no elemento
+      const rect = nodeElement.getBoundingClientRect();
+      const containerRect = containerRef.current?.getBoundingClientRect();
+
+      if (!containerRect) return;
+
+      const x = rect.left - containerRect.left + rect.width / 2;
+      const y = rect.top - containerRect.top + rect.height / 2;
+
+      setEditState({
+        isEditing: true,
+        originalName: nodeName,
+        currentValue: nodeName,
+        position: { x, y },
+        nodeElement
+      });
+    });
+
   }, [svgContent, setIsDraggingNode]);
 
   if (!svgContent) {
@@ -498,11 +636,52 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
   }
 
   return (
-    <div 
-      ref={containerRef}
-      className="w-full h-full flex items-center justify-center"
-      dangerouslySetInnerHTML={{ __html: svgContent }}
-    />
+    <div className="relative w-full h-full">
+      <div
+        ref={containerRef}
+        className="w-full h-full flex items-center justify-center"
+        dangerouslySetInnerHTML={{ __html: svgContent }}
+      />
+
+      {/* Input overlay para edição inline */}
+      {editState.isEditing && (
+        <div
+          className="absolute z-50"
+          style={{
+            left: editState.position.x,
+            top: editState.position.y,
+            transform: 'translate(-50%, -50%)'
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={editState.currentValue}
+            onChange={(e) => setEditState(prev => ({ ...prev, currentValue: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSaveEdit();
+              } else if (e.key === 'Escape') {
+                handleCancelEdit();
+              }
+            }}
+            onBlur={() => {
+              // Delay para evitar blur acidental ao abrir
+              setTimeout(() => {
+                if (editState.isEditing) {
+                  handleSaveEdit();
+                }
+              }, 150);
+            }}
+            className="px-3 py-2 text-sm font-mono bg-white dark:bg-slate-800 border-2 border-blue-500 rounded-md shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[150px]"
+            style={{ minWidth: Math.max(150, editState.currentValue.length * 10) }}
+          />
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">
+            Enter: salvar | Esc: cancelar
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
