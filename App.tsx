@@ -76,6 +76,40 @@ const App: React.FC = () => {
   // Tabs hook for managing multiple diagrams
   const tabs = useTabs(initialCode);
 
+  // Listen for URL hash changes (for PWA shared links)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const urlCode = getCodeFromUrl();
+      if (urlCode && urlCode !== tabs.activeTab.code) {
+        // Create a new tab with the shared diagram
+        tabs.addTab(urlCode, 'Shared');
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+
+    // Check when app gains focus (PWA coming to foreground)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleHashChange();
+      }
+    };
+
+    // Check on focus (alternative for some browsers)
+    const handleFocus = () => {
+      handleHashChange();
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [tabs]);
+
   // History hook for undo/redo (per active tab)
   const history = useHistory(tabs.activeTab.code);
   const code = history.value;
