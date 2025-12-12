@@ -273,8 +273,6 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
     let cancelled = false;
 
     const renderDiagram = async () => {
-      console.log('renderDiagram triggered');
-
       if (!code.trim()) {
         setSvgContent('');
         return;
@@ -407,20 +405,13 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
 
   // D3 Logic
   useEffect(() => {
-    console.log('D3 useEffect triggered, svgContent length:', svgContent.length);
-
     if (!containerRef.current || !svgContent) return;
 
     const div = d3.select(containerRef.current);
     const svg = div.select("svg");
-    if (svg.empty()) {
-      console.log('SVG is empty!');
-      return;
-    }
+    if (svg.empty()) return;
 
-    console.log('Setting up D3 handlers');
     const nodes = svg.selectAll(".node");
-    console.log('Found nodes:', nodes.size());
     // Select path elements directly under .edgePaths (handles different mermaid versions)
     const edges = svg.selectAll(".edgePaths path"); 
     const labels = svg.selectAll(".edgeLabels .edgeLabel");
@@ -567,8 +558,7 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
     };
 
     const dragBehavior = d3.drag()
-      .on("start", function(event: any) {
-        console.log('Drag start');
+      .on("start", function() {
         d3.select(this).raise().classed("active", true).style("cursor", "grabbing");
         setIsDraggingNode(true);
       })
