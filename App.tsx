@@ -429,10 +429,10 @@ const App: React.FC = () => {
                 onTransformed={handleTransformChange}
               >
                 <TransformComponent
-                  wrapperStyle={{ width: "100%", height: "100%" }}
-                  contentStyle={{ width: "100%", height: "100%" }}
+                  wrapperStyle={{ width: "100%", height: "100%", overflow: "visible" }}
+                  contentStyle={{ overflow: "visible" }}
                   wrapperClass="w-full h-full"
-                  contentClass="w-full h-full flex items-center justify-center"
+                  contentClass="flex items-center justify-center"
                 >
                    <InnerMermaidRenderer
                      key={refreshKey}
@@ -735,7 +735,19 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
 
         if (cancelled) return;
 
-        setSvgContent(svg);
+        // Adjust SVG to prevent clipping - remove fixed dimensions and add overflow visible
+        const adjustedSvg = svg
+          .replace(/(<svg[^>]*)\s+width="[^"]*"/gi, '$1')
+          .replace(/(<svg[^>]*)\s+height="[^"]*"/gi, '$1')
+          .replace(/(<svg[^>]*)\s+style="[^"]*"/gi, '$1 style="overflow: visible; max-width: none;"')
+          .replace(/(<svg)([^>]*>)/gi, (match, p1, p2) => {
+            if (!match.includes('style=')) {
+              return `${p1} style="overflow: visible; max-width: none;"${p2}`;
+            }
+            return match;
+          });
+
+        setSvgContent(adjustedSvg);
         onSuccess();
       } catch (e: any) {
         if (cancelled) return;
@@ -1028,10 +1040,11 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
   }
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative" style={{ overflow: 'visible' }}>
       <div
         ref={containerRef}
-        className="w-full h-full flex items-center justify-center"
+        className="flex items-center justify-center"
+        style={{ overflow: 'visible' }}
         dangerouslySetInnerHTML={{ __html: svgContent }}
       />
 
