@@ -3,7 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mermaid Pro Viz</title>
+    <meta name="theme-color" content="#6366f1" />
+    <meta name="description" content="Professional Mermaid diagram editor with live preview" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="forge Draw" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <title>forge Draw - Mermaid Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -51,6 +59,77 @@
       }
       .node:active {
         cursor: grabbing;
+      }
+
+      /* CodeMirror Styles */
+      .cm-editor {
+        height: 100%;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 14px;
+      }
+      .cm-editor.cm-focused {
+        outline: none;
+      }
+      .cm-scroller {
+        overflow: auto;
+      }
+      .cm-gutters {
+        border-right: 1px solid #e5e7eb;
+      }
+      .dark .cm-gutters {
+        background: #1e293b;
+        border-right-color: #334155;
+        color: #64748b;
+      }
+      .dark .cm-activeLineGutter {
+        background: #334155;
+      }
+      .dark .cm-activeLine {
+        background: rgba(51, 65, 85, 0.5);
+      }
+      .cm-content {
+        padding: 8px 0;
+      }
+      /* Syntax highlighting para dark mode */
+      .dark .cm-editor .cm-content {
+        caret-color: #e2e8f0;
+      }
+      .dark .cm-editor .cm-cursor {
+        border-left-color: #e2e8f0;
+      }
+      .dark .cm-editor .cm-selectionBackground,
+      .dark .cm-editor.cm-focused .cm-selectionBackground {
+        background: #334155;
+      }
+      /* Lint error styling */
+      .cm-lintRange-error {
+        background: linear-gradient(to bottom, transparent 0%, transparent calc(100% - 3px), #ef4444 calc(100% - 3px));
+      }
+      .cm-lintRange-warning {
+        background: linear-gradient(to bottom, transparent 0%, transparent calc(100% - 3px), #f59e0b calc(100% - 3px));
+      }
+
+      /* Mobile Styles */
+      @media (max-width: 768px) {
+        .touch-target {
+          min-height: 44px;
+          min-width: 44px;
+        }
+        .cm-editor {
+          font-size: 16px; /* Prevents iOS zoom on focus */
+        }
+        .mobile-toolbar {
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+        .mobile-hidden {
+          display: none !important;
+        }
+      }
+
+      /* Prevent overscroll bounce on mobile */
+      body {
+        overscroll-behavior: none;
       }
 
       /* Print Styles */
@@ -109,7 +188,17 @@
     "lucide-react": "https://esm.sh/lucide-react@0.263.1?external=react",
     "mermaid": "https://esm.sh/mermaid@10.6.1",
     "react-zoom-pan-pinch": "https://esm.sh/react-zoom-pan-pinch@3.3.0?external=react,react-dom",
-    "d3": "https://esm.sh/d3@7.9.0?external=react,react-dom"
+    "d3": "https://esm.sh/d3@7.9.0?external=react,react-dom",
+    "@codemirror/state": "https://esm.sh/@codemirror/state@6",
+    "@codemirror/view": "https://esm.sh/@codemirror/view@6",
+    "@codemirror/commands": "https://esm.sh/@codemirror/commands@6",
+    "@codemirror/language": "https://esm.sh/@codemirror/language@6",
+    "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6",
+    "@codemirror/search": "https://esm.sh/@codemirror/search@6",
+    "@codemirror/lint": "https://esm.sh/@codemirror/lint@6",
+    "@lezer/highlight": "https://esm.sh/@lezer/highlight@1",
+    "codemirror": "https://esm.sh/codemirror@6",
+    "pako": "https://esm.sh/pako@2.1.0"
   }
 }
 </script>
@@ -118,5 +207,19 @@
   <body class="bg-gray-50 text-slate-900 dark:bg-darker dark:text-gray-100 transition-colors duration-300">
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
+  <script>
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('SW registered:', registration.scope);
+          })
+          .catch(error => {
+            console.log('SW registration failed:', error);
+          });
+      });
+    }
+  </script>
 </body>
 </html>

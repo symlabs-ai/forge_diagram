@@ -1,20 +1,66 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# forge Draw
 
-# Run and deploy your AI Studio app
+Editor profissional de diagramas Mermaid com preview em tempo real, temas customizados e suporte offline.
 
-This contains everything you need to run your app locally.
+![forge Draw](https://img.shields.io/badge/version-0.1.1-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-View your app in AI Studio: https://ai.studio/apps/drive/14IjDM7evN641ijxYYA112Q0mVt9j_bAx
+## Features
 
-## Run Locally
+- **Editor com Syntax Highlighting** - CodeMirror com autocomplete e linting
+- **Preview em Tempo Real** - Renderiza diagramas instantaneamente
+- **Temas Customizados** - Default, Dark, Forest, Ocean, Sunset, Lavender, Mint, Rose
+- **Templates** - Flowchart, Sequence, Class, ER, State, Gantt, Pie, Mindmap
+- **Drag & Drop** - Arraste nodes para reorganizar diagramas
+- **Zoom & Pan** - Navegue por diagramas grandes com minimap
+- **Export** - PNG, SVG, Markdown, PDF (print)
+- **Share** - URL compartilhavel com compressao
+- **Embed** - Codigo para iframe, HTML ou Markdown
+- **Import** - PlantUML e draw.io
+- **Multiplas Abas** - Ate 10 diagramas simultaneos
+- **PWA** - Instalavel e funciona offline
+- **Responsive** - Funciona em mobile
 
-**Prerequisites:**  Node.js
+## Quick Start
 
+```bash
+# Instalar dependencias
+npm install
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+# Rodar em desenvolvimento
+npm run dev
+
+# Build para producao
+npm run build
+```
+
+## Deploy
+
+### Servidor Linux (nginx)
+
+```bash
+# Build
+npm run build
+
+# Copiar dist/ para /var/www/seu-site
+# Configurar nginx para servir arquivos estaticos
+```
+
+Ver [guia completo de deploy](docs/DEPLOY.md) (em breve).
+
+## Stack
+
+- **Frontend**: React 18 + TypeScript
+- **Build**: Vite
+- **Editor**: CodeMirror 6
+- **Diagramas**: Mermaid.js
+- **Zoom**: react-zoom-pan-pinch
+- **Compressao**: pako
+
+## Licenca
+
+MIT
+
+---
+
+Desenvolvido por [Symlabs AI](https://github.com/symlabs-ai)

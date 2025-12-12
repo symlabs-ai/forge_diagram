@@ -2,25 +2,28 @@ import { useCallback, useState } from 'react';
 import {
   downloadPng,
   downloadSvg,
+  downloadMarkdown,
   copySvgToClipboard,
   getTimestampedFilename,
 } from '../utils/exportUtils';
 
 interface UseExportOptions {
   getSvgContent: () => string | null;
+  getCode: () => string;
   onPrint: () => void;
 }
 
 interface UseExportReturn {
   exportPng: () => Promise<void>;
   exportSvg: () => void;
+  exportMarkdown: () => void;
   exportPdf: () => void;
   copySvg: () => Promise<boolean>;
   isExporting: boolean;
   exportError: string | null;
 }
 
-export function useExport({ getSvgContent, onPrint }: UseExportOptions): UseExportReturn {
+export function useExport({ getSvgContent, getCode, onPrint }: UseExportOptions): UseExportReturn {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -56,6 +59,18 @@ export function useExport({ getSvgContent, onPrint }: UseExportOptions): UseExpo
     downloadSvg(svgContent, filename);
   }, [getSvgContent]);
 
+  const exportMarkdown = useCallback(() => {
+    const code = getCode();
+    if (!code.trim()) {
+      setExportError('No diagram to export');
+      return;
+    }
+
+    setExportError(null);
+    const filename = getTimestampedFilename('mermaid-diagram', 'md');
+    downloadMarkdown(code, filename);
+  }, [getCode]);
+
   const exportPdf = useCallback(() => {
     onPrint();
   }, [onPrint]);
@@ -78,6 +93,7 @@ export function useExport({ getSvgContent, onPrint }: UseExportOptions): UseExpo
   return {
     exportPng,
     exportSvg,
+    exportMarkdown,
     exportPdf,
     copySvg,
     isExporting,

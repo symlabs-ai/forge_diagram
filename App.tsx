@@ -1,14 +1,28 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Editor } from './components/Editor';
+import { CodeEditor } from './components/CodeEditor';
 import { Toolbar } from './components/Toolbar';
 import { SaveDialog, LoadDialog, RecoveryDialog } from './components/SaveLoadDialog';
+import { EmbedDialog } from './components/EmbedDialog';
+import { ImportDialog } from './components/ImportDialog';
+import { ThemeSelector } from './components/ThemeSelector';
+import { TemplateSelector } from './components/TemplateSelector';
+import { ResizeHandle, usePanelResize } from './components/ResizeHandle';
+import { Minimap } from './components/Minimap';
+import { MobileTabBar, MobileTab } from './components/MobileTabBar';
+import { TabBar } from './components/TabBar';
+import { useIsMobile } from './hooks/useMediaQuery';
+import { useTabs } from './hooks/useTabs';
 import { detectOrientation, toggleOrientationInCode, INITIAL_CODE } from './utils/mermaidUtils';
+import { themes, MermaidTheme, applyThemeToCode } from './utils/mermaidThemes';
+import { getCodeFromUrl, copyShareUrl } from './utils/shareUtils';
+import { DiagramTemplate } from './utils/diagramTemplates';
 import { Orientation } from './types';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import * as d3 from "d3";
 import { useExport } from './hooks/useExport';
 import { useHistory } from './hooks/useHistory';
 import { useDiagramStorage } from './hooks/useDiagramStorage';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
@@ -21,13 +35,56 @@ const App: React.FC = () => {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
+  const [showEmbedDialog, setShowEmbedDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+
+  // Theme state
+  const [currentTheme, setCurrentTheme] = useState<MermaidTheme>(themes[0]);
+
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Minimap state
+  const [showMinimap, setShowMinimap] = useState(true);
+
+  // Share notification state
+  const [shareNotification, setShareNotification] = useState<string | null>(null);
+
+  // Mobile state
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState<MobileTab>('editor');
+
+  // Transform state for minimap
+  const [transformState, setTransformState] = useState({ scale: 1, positionX: 0, positionY: 0 });
+
+  // Preview container ref for fullscreen and dimensions
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
+
+  // Panel resize hook
+  const { width: editorWidth, handleResize, handleResizeEnd } = usePanelResize(400, 250, 800);
 
   // SVG content ref for export
   const svgContentRef = useRef<string>('');
 
-  // History hook for undo/redo
-  const history = useHistory(INITIAL_CODE);
+  // Check for code in URL on initial load
+  const initialCode = React.useMemo(() => {
+    const urlCode = getCodeFromUrl();
+    return urlCode || INITIAL_CODE;
+  }, []);
+
+  // Tabs hook for managing multiple diagrams
+  const tabs = useTabs(initialCode);
+
+  // History hook for undo/redo (per active tab)
+  const history = useHistory(tabs.activeTab.code);
   const code = history.value;
+
+  // Sync history with active tab when tab changes
+  useEffect(() => {
+    history.clear(tabs.activeTab.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs.activeTabId]);
 
   // Ref for the zoom wrapper instance
   const transformComponentRef = useRef<ReactZoomPanPinchRef | null>(null);
@@ -44,6 +101,7 @@ const App: React.FC = () => {
   // Export hook
   const exportHook = useExport({
     getSvgContent: useCallback(() => svgContentRef.current || null, []),
+    getCode: useCallback(() => code, [code]),
     onPrint: useCallback(() => {
       if (transformComponentRef.current) {
         transformComponentRef.current.resetTransform();
@@ -89,8 +147,9 @@ const App: React.FC = () => {
 
   const handleCodeChange = React.useCallback((newCode: string) => {
     history.setValue(newCode);
+    tabs.updateTabCode(tabs.activeTabId, newCode);
     setError(null);
-  }, [history]);
+  }, [history, tabs]);
 
   const handleToggleOrientation = () => {
     // Detecta orientação diretamente do código atual (evita estado dessincronizado)
@@ -137,6 +196,115 @@ const App: React.FC = () => {
     setShowRecoveryDialog(false);
   }, [storage]);
 
+  // Theme change handler
+  const handleThemeChange = useCallback((theme: MermaidTheme) => {
+    setCurrentTheme(theme);
+    // Apply theme to current code
+    const newCode = applyThemeToCode(code, theme);
+    if (newCode !== code) {
+      history.setValue(newCode);
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [code, history]);
+
+  // Template selection handler
+  const handleSelectTemplate = useCallback((template: DiagramTemplate) => {
+    // Apply current theme to template code
+    const themedCode = applyThemeToCode(template.code, currentTheme);
+    history.clear(themedCode);
+    setRefreshKey(prev => prev + 1);
+  }, [currentTheme, history]);
+
+  // Share handler
+  const handleShare = useCallback(async () => {
+    const success = await copyShareUrl(code);
+    if (success) {
+      setShareNotification('URL copiada para a \u00e1rea de transfer\u00eancia!');
+      setTimeout(() => setShareNotification(null), 3000);
+    } else {
+      setShareNotification('Erro ao copiar URL');
+      setTimeout(() => setShareNotification(null), 3000);
+    }
+  }, [code]);
+
+  // Embed handler
+  const handleEmbed = useCallback(() => {
+    setShowEmbedDialog(true);
+  }, []);
+
+  // Import handler
+  const handleImportClick = useCallback(() => {
+    setShowImportDialog(true);
+  }, []);
+
+  const handleImportDiagram = useCallback((importedCode: string) => {
+    handleCodeChange(importedCode);
+    setRefreshKey(prev => prev + 1);
+  }, [handleCodeChange]);
+
+  // Fullscreen handlers
+  const handleToggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement && previewContainerRef.current) {
+      previewContainerRef.current.requestFullscreen().catch(console.error);
+    } else if (document.fullscreenElement) {
+      document.exitFullscreen().catch(console.error);
+    }
+  }, []);
+
+  // Track fullscreen state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Track container dimensions for minimap
+  useEffect(() => {
+    if (!previewContainerRef.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerDimensions({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+
+    observer.observe(previewContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Track transform state for minimap
+  const handleTransformChange = useCallback((ref: ReactZoomPanPinchRef) => {
+    setTransformState({
+      scale: ref.state.scale,
+      positionX: ref.state.positionX,
+      positionY: ref.state.positionY,
+    });
+  }, []);
+
+  // Minimap navigation handler
+  const handleMinimapNavigate = useCallback((x: number, y: number) => {
+    if (transformComponentRef.current) {
+      transformComponentRef.current.setTransform(x, y, transformState.scale);
+    }
+  }, [transformState.scale]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onSave: handleSave,
+    onUndo: history.undo,
+    onRedo: history.redo,
+    onToggleFullscreen: handleToggleFullscreen,
+    onNewDiagram: useCallback(() => {
+      history.clear(INITIAL_CODE);
+      setRefreshKey(prev => prev + 1);
+    }, [history]),
+  });
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-darker text-slate-900 dark:text-gray-100">
       
@@ -154,7 +322,13 @@ const App: React.FC = () => {
         // Export
         onExportPng={exportHook.exportPng}
         onExportSvg={exportHook.exportSvg}
+        onExportMarkdown={exportHook.exportMarkdown}
         onCopySvg={exportHook.copySvg}
+        // Share
+        onShare={handleShare}
+        onEmbed={handleEmbed}
+        // Import
+        onImport={handleImportClick}
         // Persistence
         onSave={handleSave}
         onLoad={handleLoad}
@@ -164,22 +338,84 @@ const App: React.FC = () => {
         canRedo={history.canRedo}
         autoSaveEnabled={storage.autoSaveEnabled}
         onToggleAutoSave={storage.toggleAutoSave}
+        // Theme & Templates
+        themeSelector={
+          <ThemeSelector
+            currentThemeId={currentTheme.id}
+            onThemeChange={handleThemeChange}
+            isDarkMode={isDarkMode}
+          />
+        }
+        templateSelector={
+          <TemplateSelector
+            onSelectTemplate={handleSelectTemplate}
+            isDarkMode={isDarkMode}
+          />
+        }
+        // Fullscreen & Minimap
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={handleToggleFullscreen}
+        showMinimap={showMinimap}
+        onToggleMinimap={() => setShowMinimap(!showMinimap)}
+        isMobile={isMobile}
       />
 
+      {/* Diagram Tabs Bar */}
+      {!isMobile && (
+        <TabBar
+          tabs={tabs.tabs}
+          activeTabId={tabs.activeTabId}
+          onSelectTab={tabs.selectTab}
+          onCloseTab={tabs.closeTab}
+          onAddTab={() => tabs.addTab()}
+          onRenameTab={tabs.renameTab}
+          canAddTab={tabs.canAddTab}
+          isDarkMode={isDarkMode}
+        />
+      )}
+
+      {/* Mobile Tab Bar */}
+      {isMobile && (
+        <MobileTabBar
+          activeTab={mobileTab}
+          onTabChange={setMobileTab}
+          isDarkMode={isDarkMode}
+        />
+      )}
+
       <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
-        {/* Editor Section */}
-        <div className="w-full md:w-1/3 min-w-[300px] h-1/2 md:h-full p-4 border-r border-gray-200 dark:border-slate-800 no-print">
-          <Editor 
-            code={code} 
-            onChange={handleCodeChange} 
-            error={error} 
+        {/* Editor Section - hidden on mobile when preview tab is active */}
+        <div
+          className={`${isMobile ? (mobileTab === 'editor' ? 'flex-1' : 'hidden') : ''} h-1/2 md:h-full p-4 no-print flex flex-col`}
+          style={!isMobile ? { width: `${editorWidth}px`, minWidth: '250px', maxWidth: '800px' } : undefined}
+        >
+          <CodeEditor
+            code={code}
+            onChange={handleCodeChange}
+            isDarkMode={isDarkMode}
+            error={error}
+            onSave={handleSave}
+            onUndo={history.undo}
+            onRedo={history.redo}
           />
         </div>
 
-        {/* Preview Section */}
-        <div className="w-full md:w-2/3 h-1/2 md:h-full p-4 bg-gray-100 dark:bg-slate-900 relative">
+        {/* Resize Handle - hidden on mobile */}
+        {!isMobile && (
+          <ResizeHandle
+            onResize={handleResize}
+            onResizeEnd={handleResizeEnd}
+            isDarkMode={isDarkMode}
+          />
+        )}
+
+        {/* Preview Section - hidden on mobile when editor tab is active */}
+        <div
+          ref={previewContainerRef}
+          className={`${isMobile ? (mobileTab === 'preview' ? 'flex-1' : 'hidden') : 'flex-1'} h-1/2 md:h-full p-4 bg-gray-100 dark:bg-slate-900 relative`}
+        >
           
-          <div className="h-full w-full shadow-xl rounded-lg bg-white dark:bg-slate-800 overflow-hidden flex flex-col">
+          <div className="h-full w-full shadow-xl rounded-lg bg-white dark:bg-slate-800 overflow-hidden flex flex-col relative">
              <TransformWrapper
                 ref={transformComponentRef}
                 initialScale={1}
@@ -190,6 +426,7 @@ const App: React.FC = () => {
                 wheel={{ step: 0.1 }}
                 doubleClick={{ disabled: true }}
                 disabled={isDraggingNode}
+                onTransformed={handleTransformChange}
               >
                 <TransformComponent
                   wrapperStyle={{ width: "100%", height: "100%" }}
@@ -209,6 +446,33 @@ const App: React.FC = () => {
                    />
                 </TransformComponent>
             </TransformWrapper>
+
+            {/* Minimap */}
+            {showMinimap && svgContentRef.current && (
+              <Minimap
+                svgContent={svgContentRef.current}
+                scale={transformState.scale}
+                positionX={transformState.positionX}
+                positionY={transformState.positionY}
+                containerWidth={containerDimensions.width}
+                containerHeight={containerDimensions.height}
+                isDarkMode={isDarkMode}
+                onNavigate={handleMinimapNavigate}
+              />
+            )}
+
+            {/* Fullscreen exit button */}
+            {isFullscreen && (
+              <button
+                onClick={handleToggleFullscreen}
+                className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 text-white rounded-lg z-50"
+                title="Exit Fullscreen (Esc)"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -234,6 +498,25 @@ const App: React.FC = () => {
         onDiscard={handleDiscardRecovery}
         isDarkMode={isDarkMode}
       />
+      <EmbedDialog
+        isOpen={showEmbedDialog}
+        onClose={() => setShowEmbedDialog(false)}
+        code={code}
+        isDarkMode={isDarkMode}
+      />
+      <ImportDialog
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        onImport={handleImportDiagram}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* Share notification toast */}
+      {shareNotification && (
+        <div className="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-fade-in">
+          {shareNotification}
+        </div>
+      )}
     </div>
   );
 };

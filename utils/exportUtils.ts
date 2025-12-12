@@ -101,3 +101,21 @@ export function getTimestampedFilename(baseName: string, extension: string): str
   const timestamp = now.toISOString().slice(0, 19).replace(/[T:]/g, '-');
   return `${baseName}-${timestamp}.${extension}`;
 }
+
+/**
+ * Download Mermaid code as Markdown file
+ */
+export function downloadMarkdown(code: string, filename: string): void {
+  const content = `---
+title: Mermaid Diagram
+created: ${new Date().toISOString()}
+generator: forge Draw
+---
+
+\`\`\`mermaid
+${code}
+\`\`\`
+`;
+  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+  downloadBlob(blob, filename);
+}

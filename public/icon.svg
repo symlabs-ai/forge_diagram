@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="64" fill="#6366f1"/>
+  <g fill="white">
+    <!-- Diagram nodes -->
+    <rect x="80" y="120" width="120" height="60" rx="8"/>
+    <rect x="310" y="120" width="120" height="60" rx="8"/>
+    <rect x="195" y="280" width="120" height="60" rx="8"/>
+    <rect x="80" y="360" width="120" height="60" rx="8"/>
+    <rect x="310" y="360" width="120" height="60" rx="8"/>
+  </g>
+  <g stroke="white" stroke-width="4" fill="none">
+    <!-- Connections -->
+    <path d="M140 180 L140 220 L255 220 L255 280"/>
+    <path d="M370 180 L370 220 L255 220"/>
+    <path d="M255 340 L255 380 L140 380 L140 360"/>
+    <path d="M255 340 L255 380 L370 380 L370 360"/>
+  </g>
+  <!-- Text: fD -->
+  <text x="256" y="480" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="48" font-weight="bold">fD</text>
+</svg>

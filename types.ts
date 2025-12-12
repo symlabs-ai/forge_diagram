@@ -36,7 +36,13 @@ export interface ToolbarProps {
   // Export
   onExportPng: () => void;
   onExportSvg: () => void;
+  onExportMarkdown: () => void;
   onCopySvg: () => void;
+  // Share
+  onShare: () => void;
+  onEmbed: () => void;
+  // Import
+  onImport: () => void;
   // Persistence
   onSave: () => void;
   onLoad: () => void;
@@ -46,6 +52,17 @@ export interface ToolbarProps {
   canRedo: boolean;
   autoSaveEnabled: boolean;
   onToggleAutoSave: () => void;
+  // Theme & Templates
+  themeSelector?: React.ReactNode;
+  templateSelector?: React.ReactNode;
+  // Fullscreen
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+  // Minimap
+  showMinimap?: boolean;
+  onToggleMinimap?: () => void;
+  // Mobile
+  isMobile?: boolean;
 }
 
 // Export types
@@ -71,6 +88,22 @@ export interface AppSettings {
   autoSaveInterval: number;
   maxHistorySize: number;
 }
+
+// Tab system types
+export interface DiagramTab {
+  id: string;
+  name: string;
+  code: string;
+  isDirty: boolean;
+  createdAt: number;
+}
+
+export interface TabsState {
+  tabs: DiagramTab[];
+  activeTabId: string;
+}
+
+export const MAX_TABS = 10;
 
 export interface DiagramStorage {
   version: number;

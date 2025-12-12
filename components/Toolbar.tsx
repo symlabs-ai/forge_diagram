@@ -14,7 +14,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   // Export
   onExportPng,
   onExportSvg,
+  onExportMarkdown,
   onCopySvg,
+  // Share
+  onShare,
+  onEmbed,
+  // Import
+  onImport,
   // Persistence
   onSave,
   onLoad,
@@ -24,6 +30,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   canRedo,
   autoSaveEnabled,
   onToggleAutoSave,
+  // Theme & Templates
+  themeSelector,
+  templateSelector,
+  // Fullscreen
+  isFullscreen,
+  onToggleFullscreen,
+  // Minimap
+  showMinimap,
+  onToggleMinimap,
+  // Mobile
+  isMobile,
 }) => {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -41,9 +58,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const disabledClass = "p-2 rounded opacity-40 cursor-not-allowed";
 
   return (
-    <div className="flex items-center justify-between p-2 bg-gray-200 dark:bg-slate-700 shadow-md no-print">
-      {/* Left section: File operations */}
+    <div className={`flex items-center justify-between p-2 bg-gray-200 dark:bg-slate-700 shadow-md no-print ${isMobile ? 'mobile-toolbar flex-wrap gap-1' : ''}`}>
+      {/* Left section: Logo + File operations */}
       <div className="flex items-center space-x-1">
+        {/* Logo/Brand */}
+        <span className={`font-bold text-indigo-600 dark:text-indigo-400 ${isMobile ? 'text-base mr-2' : 'text-lg mr-3'}`}>
+          forge Draw
+        </span>
+
+        {!isMobile && <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mr-1" />}
+
         <button
           onClick={onSave}
           className={buttonClass}
@@ -79,6 +103,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
           </svg>
         </label>
+        <button
+          onClick={onImport}
+          className={buttonClass}
+          title="Import (PlantUML, draw.io)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
 
         <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />
 
@@ -118,8 +151,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
       </div>
 
-      {/* Center section: View controls */}
-      <div className="flex items-center space-x-1">
+      {/* Center section: View controls - simplified on mobile */}
+      <div className={`flex items-center space-x-1 ${isMobile ? 'hidden md:flex' : ''}`}>
+        {/* Theme & Template selectors */}
+        {themeSelector}
+        {templateSelector}
+
+        <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />
+
         <button
           onClick={toggleDarkMode}
           className={buttonClass}
@@ -140,9 +179,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className={buttonClass}
           title={`Toggle Orientation (Current: ${orientation})`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 11-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 011.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 011.414-1.414L15 13.586V12a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
+          {orientation === 'TD' ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L6.707 7.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          )}
         </button>
 
         <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />
@@ -174,10 +219,65 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
           </svg>
         </button>
+
+        <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />
+
+        {/* Fullscreen toggle */}
+        {onToggleFullscreen && (
+          <button
+            onClick={onToggleFullscreen}
+            className={buttonClass}
+            title={isFullscreen ? "Exit Fullscreen (F11)" : "Fullscreen (F11)"}
+          >
+            {isFullscreen ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 110-2h4a1 1 0 011 1v4a1 1 0 11-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 112 0v1.586l2.293-2.293a1 1 0 011.414 1.414L6.414 15H8a1 1 0 110 2H4a1 1 0 01-1-1v-4zm13 0a1 1 0 10-2 0v1.586l-2.293-2.293a1 1 0 00-1.414 1.414L13.586 15H12a1 1 0 100 2h4a1 1 0 001-1v-4z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H5v3a1 1 0 01-2 0V4zm12 0a1 1 0 011 1v3a1 1 0 11-2 0V5h-3a1 1 0 110-2h4zM3 12a1 1 0 011 1v3h3a1 1 0 110 2H4a1 1 0 01-1-1v-4a1 1 0 011-1zm13 0a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 110-2h3v-3a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+            )}
+          </button>
+        )}
+
+        {/* Minimap toggle */}
+        {onToggleMinimap && (
+          <button
+            onClick={onToggleMinimap}
+            className={`${buttonClass} ${showMinimap ? 'text-blue-500' : ''}`}
+            title={showMinimap ? "Hide Minimap" : "Show Minimap"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5 4a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2H5zm9 6a1 1 0 10-2 0v2a1 1 0 102 0v-2zm-4-1a1 1 0 011 1v2a1 1 0 11-2 0v-2a1 1 0 011-1zM7 9a1 1 0 00-1 1v2a1 1 0 102 0v-2a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {/* Right section: Export */}
+      {/* Right section: Share & Export */}
       <div className="flex items-center space-x-1">
+        <button
+          onClick={onShare}
+          className={buttonClass}
+          title="Share URL (Copy to clipboard)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+          </svg>
+        </button>
+        <button
+          onClick={onEmbed}
+          className={buttonClass}
+          title="Embed Code"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+
+        <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />
+
         <button
           onClick={onExportPng}
           className={buttonClass}
@@ -191,6 +291,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           title="Export as SVG"
         >
           <span className="text-xs font-bold">SVG</span>
+        </button>
+        <button
+          onClick={onExportMarkdown}
+          className={buttonClass}
+          title="Export as Markdown"
+        >
+          <span className="text-xs font-bold">MD</span>
         </button>
         <button
           onClick={onCopySvg}

@@ -9,15 +9,26 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "@codemirror/autocomplete": "^6.20.0",
+    "@codemirror/commands": "^6.10.0",
+    "@codemirror/language": "^6.11.3",
+    "@codemirror/lint": "^6.9.2",
+    "@codemirror/search": "^6.5.11",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.39.4",
+    "@lezer/highlight": "^1.2.3",
+    "codemirror": "^6.0.2",
+    "d3": "7.9.0",
     "lucide-react": "0.263.1",
     "mermaid": "10.6.1",
-    "react-zoom-pan-pinch": "3.3.0",
-    "d3": "7.9.0"
+    "pako": "^2.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-zoom-pan-pinch": "3.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/pako": "^2.0.4",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

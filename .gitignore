@@ -1,6 +1,16 @@
 # Dependencies
 node_modules/
 
+# Internal docs/notes
+aprendizados/
+BACKLOG.md
+
+# Local scripts
+start.sh
+
+# IDE metadata
+metadata.json
+
 # Build output
 dist/
 
@@ -25,3 +35,13 @@ npm-debug.log*
 
 # Cache
 .cache/
+.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+
+# Package lock (opcional - remova se quiser versionar)
+# package-lock.json
