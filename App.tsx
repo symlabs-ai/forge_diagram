@@ -52,7 +52,7 @@ const App: React.FC = () => {
 
   // Mobile state
   const isMobile = useIsMobile();
-  const [mobileTab, setMobileTab] = useState<MobileTab>('editor');
+  const [mobileTab, setMobileTab] = useState<MobileTab>('preview');
 
   // Transform state for minimap
   const [transformState, setTransformState] = useState({ scale: 1, positionX: 0, positionY: 0 });
