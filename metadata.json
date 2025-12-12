@@ -1,0 +1,5 @@
+{
+  "name": "forge Mermaid",
+  "description": "Visualizador e editor de diagramas Mermaid com suporte a Dark Mode, impressão A4 e arranjo automático.",
+  "requestFramePermissions": []
+}

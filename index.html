@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mermaid Pro Viz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              primary: '#6366f1', // Indigo 500
+              secondary: '#ec4899', // Pink 500
+              dark: '#0f172a', // Slate 900
+              darker: '#020617', // Slate 950
+              paper: '#ffffff',
+              paperDark: '#1e293b', // Slate 800
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+      
+      html, body, #root {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      
+      .font-mono {
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      /* Mermaid SVG Adjustments */
+      div[dangerouslySetInnerHTML] > svg {
+        max-width: 100% !important;
+        height: auto !important;
+      }
+      
+      /* Make nodes look draggable */
+      .node {
+        cursor: grab;
+      }
+      .node:active {
+        cursor: grabbing;
+      }
+
+      /* Print Styles */
+      @media print {
+        @page {
+          margin: 0;
+          size: auto;
+        }
+        
+        body {
+          background: white !important;
+          color: black !important;
+          overflow: visible;
+        }
+
+        .no-print {
+          display: none !important;
+        }
+
+        .print-container {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
+          background: white;
+          z-index: 9999;
+          overflow: visible;
+        }
+
+        /* Override transformation for print to ensure fit */
+        .react-transform-component {
+          width: 100% !important;
+          height: 100% !important;
+          transform: none !important;
+        }
+        
+        svg {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100vw !important;
+          max-height: 100vh !important;
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "lucide-react": "https://esm.sh/lucide-react@0.263.1?external=react",
+    "mermaid": "https://esm.sh/mermaid@10.6.1",
+    "react-zoom-pan-pinch": "https://esm.sh/react-zoom-pan-pinch@3.3.0?external=react,react-dom",
+    "d3": "https://esm.sh/d3@7.9.0?external=react,react-dom"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-50 text-slate-900 dark:bg-darker dark:text-gray-100 transition-colors duration-300">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
