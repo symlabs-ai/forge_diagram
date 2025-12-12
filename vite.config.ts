@@ -11,7 +11,13 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       optimizeDeps: {
-        exclude: ['cytoscape'],
+        include: ['mermaid'],
+      },
+      build: {
+        commonjsOptions: {
+          include: [/node_modules/],
+          transformMixedEsModules: true,
+        },
       },
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
