@@ -63,7 +63,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <div className="flex items-center space-x-1">
         {/* Logo/Brand */}
         <span className={`font-bold text-indigo-600 dark:text-indigo-400 ${isMobile ? 'text-base mr-2' : 'text-lg mr-3'}`}>
-          forge Draw
+          forge Diagram
         </span>
 
         {!isMobile && <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mr-1" />}

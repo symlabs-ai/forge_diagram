@@ -15,7 +15,7 @@ e este projeto adere ao [Versionamento Semantico](https://semver.org/lang/pt-BR/
 - **PWA Offline** - Service Worker para funcionamento offline
 - **Multiplas Abas** - Trabalhe com ate 10 diagramas simultaneamente
 - **Import** - Importe diagramas de PlantUML e draw.io
-- **Logo "forge Draw"** - Branding na toolbar
+- **Logo "forge Diagram"** - Branding na toolbar
 
 ### Corrigido
 - Setas desaparecendo no tema Sunset (sequence diagrams)

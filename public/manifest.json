@@ -1,6 +1,6 @@
 {
-  "name": "forge Draw - Mermaid Diagram Editor",
-  "short_name": "forge Draw",
+  "name": "forge Diagram - Mermaid Diagram Editor",
+  "short_name": "forge Diagram",
   "description": "Professional Mermaid diagram editor with live preview",
   "start_url": "/",
   "display": "standalone",

@@ -109,7 +109,7 @@ export function downloadMarkdown(code: string, filename: string): void {
   const content = `---
 title: Mermaid Diagram
 created: ${new Date().toISOString()}
-generator: forge Draw
+generator: forge Diagram
 ---
 
 \`\`\`mermaid

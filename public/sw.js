@@ -1,9 +1,9 @@
 /**
- * Service Worker for forge Draw PWA
+ * Service Worker for forge Diagram PWA
  * Provides offline functionality with cache-first strategy
  */
 
-const CACHE_NAME = 'forge-draw-v1';
+const CACHE_NAME = 'forge-diagram-v1';
 
 // Assets to cache on install
 const STATIC_ASSETS = [
