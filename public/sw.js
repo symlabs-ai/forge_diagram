@@ -3,7 +3,7 @@
  * Provides offline functionality with cache-first strategy
  */
 
-const CACHE_NAME = 'forge-diagram-v1';
+const CACHE_NAME = 'forge-diagram-v2';
 
 // Assets to cache on install
 const STATIC_ASSETS = [
