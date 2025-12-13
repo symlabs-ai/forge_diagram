@@ -15,6 +15,7 @@ import { useTabs } from './hooks/useTabs';
 import { detectOrientation, toggleOrientationInCode, INITIAL_CODE } from './utils/mermaidUtils';
 import { themes, MermaidTheme, applyThemeToCode } from './utils/mermaidThemes';
 import { getCodeFromUrl, copyShareUrl } from './utils/shareUtils';
+import { isPlantUML, renderPlantUML } from './utils/plantumlUtils';
 import { DiagramTemplate } from './utils/diagramTemplates';
 import { Orientation } from './types';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
@@ -714,6 +715,34 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
         return;
       }
 
+      // Check if code is PlantUML - render via external server
+      if (isPlantUML(code)) {
+        try {
+          const svg = await renderPlantUML(code);
+          if (cancelled) return;
+
+          // Add overflow visible to SVG
+          const adjustedSvg = svg.replace(
+            /<svg([^>]*)>/i,
+            (match, attrs) => {
+              if (attrs.includes('style="')) {
+                return match.replace(/style="([^"]*)"/i, 'style="$1; overflow: visible;"');
+              } else {
+                return `<svg${attrs} style="overflow: visible;">`;
+              }
+            }
+          );
+
+          setSvgContent(adjustedSvg);
+          onSuccess();
+          return;
+        } catch (e: any) {
+          if (cancelled) return;
+          onError(e.message || 'Erro ao renderizar PlantUML');
+          return;
+        }
+      }
+
       // Limpa TODOS os elementos mermaid do DOM
       document.querySelectorAll('[id^="mermaid"]').forEach(el => el.remove());
       document.querySelectorAll('[id^="dmermaid"]').forEach(el => el.remove());
@@ -860,15 +889,213 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
     const svg = div.select("svg");
     if (svg.empty()) return;
 
+    // Check if this is PlantUML or Mermaid SVG
+    // PlantUML uses class="entity" for nodes, Mermaid uses class="node"
+    const isPlantUMLSvg = svg.select(".entity").node() !== null;
+
+    // ========== PlantUML: Drag with edge reconnection ==========
+    if (isPlantUMLSvg) {
+      const plantUMLNodes = svg.selectAll("g.entity");
+      const plantUMLLinks = svg.selectAll("g.link");
+
+      // Build edge metadata: map entity names to their elements and links
+      interface PlantUMLEdge {
+        linkGroup: any;
+        pathEl: any;
+        polygonEl: any;
+        sourceEntity: string;
+        targetEntity: string;
+      }
+
+      const plantUMLEdges: PlantUMLEdge[] = [];
+
+      plantUMLLinks.each(function() {
+        const linkGroup = d3.select(this);
+        const pathEl = linkGroup.select("path");
+        const polygonEl = linkGroup.select("polygon");
+        const pathId = pathEl.attr("id") || "";
+
+        // Parse ID like "Car-to-Engine"
+        const match = pathId.match(/^(.+)-to-(.+)$/);
+        if (match) {
+          plantUMLEdges.push({
+            linkGroup,
+            pathEl,
+            polygonEl,
+            sourceEntity: match[1],
+            targetEntity: match[2]
+          });
+        }
+      });
+
+      // Helper to get entity bbox with transform
+      const getEntityBBox = (entityName: string): { x: number; y: number; width: number; height: number; cx: number; cy: number } | null => {
+        const entity = svg.select(`#entity_${entityName}`);
+        if (entity.empty()) return null;
+
+        const el = entity.node() as SVGGElement;
+        const bbox = el.getBBox();
+
+        // Get transform offset
+        const transform = entity.attr("transform");
+        let tx = 0, ty = 0;
+        if (transform) {
+          const match = /translate\(\s*([-\d.]+)[,\s]*([-\d.]*)\s*\)/.exec(transform);
+          if (match) {
+            tx = parseFloat(match[1]) || 0;
+            ty = parseFloat(match[2]) || 0;
+          }
+        }
+
+        return {
+          x: bbox.x + tx,
+          y: bbox.y + ty,
+          width: bbox.width,
+          height: bbox.height,
+          cx: bbox.x + tx + bbox.width / 2,
+          cy: bbox.y + ty + bbox.height / 2
+        };
+      };
+
+      // Update connected edges when a node is dragged
+      const updatePlantUMLEdges = (entityName: string) => {
+        plantUMLEdges.forEach(edge => {
+          if (edge.sourceEntity !== entityName && edge.targetEntity !== entityName) return;
+
+          const sourceBBox = getEntityBBox(edge.sourceEntity);
+          const targetBBox = getEntityBBox(edge.targetEntity);
+
+          if (!sourceBBox || !targetBBox) return;
+
+          // Calculate connection points based on relative positions
+          let startX: number, startY: number, endX: number, endY: number;
+          let isVertical: boolean;
+
+          const dx = targetBBox.cx - sourceBBox.cx;
+          const dy = targetBBox.cy - sourceBBox.cy;
+
+          if (Math.abs(dy) > Math.abs(dx)) {
+            // Vertical connection
+            isVertical = true;
+            if (dy > 0) {
+              // Target is below source
+              startX = sourceBBox.cx;
+              startY = sourceBBox.y + sourceBBox.height;
+              endX = targetBBox.cx;
+              endY = targetBBox.y;
+            } else {
+              // Target is above source
+              startX = sourceBBox.cx;
+              startY = sourceBBox.y;
+              endX = targetBBox.cx;
+              endY = targetBBox.y + targetBBox.height;
+            }
+          } else {
+            // Horizontal connection
+            isVertical = false;
+            if (dx > 0) {
+              // Target is to the right
+              startX = sourceBBox.x + sourceBBox.width;
+              startY = sourceBBox.cy;
+              endX = targetBBox.x;
+              endY = targetBBox.cy;
+            } else {
+              // Target is to the left
+              startX = sourceBBox.x;
+              startY = sourceBBox.cy;
+              endX = targetBBox.x + targetBBox.width;
+              endY = targetBBox.cy;
+            }
+          }
+
+          // Update path with appropriate curve
+          let newD: string;
+          const arrowOffset = 6; // Space for arrowhead
+
+          if (isVertical) {
+            // Vertical: use vertical bezier curve
+            const adjustedEndY = dy > 0 ? endY - arrowOffset : endY + arrowOffset;
+            newD = `M${startX},${startY} C${startX},${(startY + adjustedEndY) / 2} ${endX},${(startY + adjustedEndY) / 2} ${endX},${adjustedEndY}`;
+          } else {
+            // Horizontal: use horizontal bezier curve
+            const adjustedEndX = dx > 0 ? endX - arrowOffset : endX + arrowOffset;
+            newD = `M${startX},${startY} C${(startX + adjustedEndX) / 2},${startY} ${(startX + adjustedEndX) / 2},${endY} ${adjustedEndX},${endY}`;
+          }
+          edge.pathEl.attr("d", newD);
+
+          // Update arrowhead polygon position
+          const arrowSize = 4;
+          let arrowPoints: string;
+
+          if (isVertical) {
+            if (dy > 0) {
+              // Arrow pointing down
+              arrowPoints = `${endX},${endY},${endX - arrowSize},${endY - arrowSize * 2.25},${endX},${endY - arrowSize},${endX + arrowSize},${endY - arrowSize * 2.25},${endX},${endY}`;
+            } else {
+              // Arrow pointing up
+              arrowPoints = `${endX},${endY},${endX - arrowSize},${endY + arrowSize * 2.25},${endX},${endY + arrowSize},${endX + arrowSize},${endY + arrowSize * 2.25},${endX},${endY}`;
+            }
+          } else {
+            if (dx > 0) {
+              // Arrow pointing right
+              arrowPoints = `${endX},${endY},${endX - arrowSize * 2.25},${endY - arrowSize},${endX - arrowSize},${endY},${endX - arrowSize * 2.25},${endY + arrowSize},${endX},${endY}`;
+            } else {
+              // Arrow pointing left
+              arrowPoints = `${endX},${endY},${endX + arrowSize * 2.25},${endY - arrowSize},${endX + arrowSize},${endY},${endX + arrowSize * 2.25},${endY + arrowSize},${endX},${endY}`;
+            }
+          }
+
+          edge.polygonEl.attr("points", arrowPoints);
+        });
+      };
+
+      // Drag behavior
+      const plantUMLDrag = d3.drag()
+        .on("start", function() {
+          d3.select(this).raise().classed("active", true).style("cursor", "grabbing");
+          setIsDraggingNode(true);
+        })
+        .on("drag", function(event: any) {
+          const node = d3.select(this);
+          const entityName = node.attr("data-entity");
+          const transform = node.attr("transform");
+          let currentX = 0, currentY = 0;
+
+          if (transform) {
+            const match = /translate\(\s*([-\d.]+)[,\s]*([-\d.]*)\s*\)/.exec(transform);
+            if (match) {
+              currentX = parseFloat(match[1]) || 0;
+              currentY = parseFloat(match[2]) || 0;
+            }
+          }
+
+          const newX = currentX + event.dx;
+          const newY = currentY + event.dy;
+          node.attr("transform", `translate(${newX}, ${newY})`);
+
+          // Update connected edges
+          if (entityName) {
+            updatePlantUMLEdges(entityName);
+          }
+        })
+        .on("end", function() {
+          d3.select(this).classed("active", false).style("cursor", "grab");
+          setIsDraggingNode(false);
+        });
+
+      plantUMLNodes.style("cursor", "grab").call(plantUMLDrag as any);
+      return;
+    }
+
+    // ========== Mermaid: Full drag with edge reconnection ==========
     const nodes = svg.selectAll(".node");
-    // Select path elements directly under .edgePaths (handles different mermaid versions)
-    const edges = svg.selectAll(".edgePaths path"); 
+    const edges = svg.selectAll(".edgePaths path");
     const labels = svg.selectAll(".edgeLabels .edgeLabel");
-    
-    const edgeMeta: { 
-        edgeEl: any; 
+
+    const edgeMeta: {
+        edgeEl: any;
         labelEl: any;
-        sourceNode: any; 
+        sourceNode: any;
         targetNode: any;
     }[] = [];
 
@@ -878,8 +1105,8 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
     }));
 
     edges.each(function(d, i) {
-        const path = d3.select(this); // 'this' is the path element itself now
-        const dAttr = path.attr("d");
+        const el = d3.select(this);
+        const dAttr = el.attr("d");
         if (!dAttr) return;
 
         const numbers = dAttr.match(/-?\d+(\.\d+)?/g)?.map(parseFloat);
@@ -895,18 +1122,15 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
         let minStartDist = Infinity;
         let minEndDist = Infinity;
 
-        nodeData.forEach(nd => {
+        nodeData.forEach((nd: any) => {
             // Check Start
             const distStart = Math.hypot(nd.bbox.cx - startX, nd.bbox.cy - startY);
-            // Prioritize containment, then distance
             const inStart = isPointInBBox({x: startX, y: startY}, nd.bbox);
-            
+
             if (inStart || distStart < minStartDist) {
-                // If we found a contained one, it wins unless we find another contained one (rare overlap)
-                // If neither contained, closest wins
                 if (inStart) {
                      bestStartNode = nd.element;
-                     minStartDist = -1; // Flag as found inside
+                     minStartDist = -1;
                 } else if (minStartDist !== -1) {
                      minStartDist = distStart;
                      bestStartNode = nd.element;
@@ -916,7 +1140,7 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
             // Check End
             const distEnd = Math.hypot(nd.bbox.cx - endX, nd.bbox.cy - endY);
             const inEnd = isPointInBBox({x: endX, y: endY}, nd.bbox);
-            
+
             if (inEnd || distEnd < minEndDist) {
                 if (inEnd) {
                     bestEndNode = nd.element;
@@ -928,7 +1152,7 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
             }
         });
 
-        // Filter out bad matches (distance too far if not contained)
+        // Filter out bad matches
         if (minStartDist > 200 && minStartDist !== -1) bestStartNode = null;
         if (minEndDist > 200 && minEndDist !== -1) bestEndNode = null;
 
@@ -965,7 +1189,7 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
             const labelEl = minLabelDist < 150 ? closestLabel : null;
 
             edgeMeta.push({
-                edgeEl: path,
+                edgeEl: el,
                 labelEl: labelEl,
                 sourceNode: bestStartNode,
                 targetNode: bestEndNode
