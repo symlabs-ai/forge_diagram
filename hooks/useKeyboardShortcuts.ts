@@ -9,6 +9,9 @@ interface KeyboardShortcuts {
   onToggleDarkMode?: () => void;
   onNewDiagram?: () => void;
   onOpenDiagram?: () => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onResetZoom?: () => void;
 }
 
 /**
@@ -22,6 +25,9 @@ interface KeyboardShortcuts {
  * - Ctrl+D: Toggle Dark Mode
  * - Ctrl+N: Novo diagrama
  * - Ctrl+O: Abrir diagrama
+ * - Ctrl+=: Zoom In
+ * - Ctrl+-: Zoom Out
+ * - Ctrl+0: Reset Zoom
  */
 export function useKeyboardShortcuts({
   onSave,
@@ -32,6 +38,9 @@ export function useKeyboardShortcuts({
   onToggleDarkMode,
   onNewDiagram,
   onOpenDiagram,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
 }: KeyboardShortcuts) {
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const isModKey = event.ctrlKey || event.metaKey;
@@ -48,6 +57,30 @@ export function useKeyboardShortcuts({
     if (event.key === 'Escape' && document.fullscreenElement) {
       onExitFullscreen?.();
       return;
+    }
+
+    // Atalhos de zoom - SEMPRE intercepta para sobrepor o browser
+    // Mesmo dentro do editor, queremos controlar o zoom do diagrama
+    if (isModKey) {
+      const key = event.key.toLowerCase();
+      if (key === '=' || key === '+' || event.key === '+') {
+        event.preventDefault();
+        event.stopPropagation();
+        onZoomIn?.();
+        return;
+      }
+      if (key === '-' || event.key === '-') {
+        event.preventDefault();
+        event.stopPropagation();
+        onZoomOut?.();
+        return;
+      }
+      if (key === '0') {
+        event.preventDefault();
+        event.stopPropagation();
+        onResetZoom?.();
+        return;
+      }
     }
 
     // Se estiver no CodeMirror, deixa ele lidar com a maioria dos atalhos
@@ -106,11 +139,15 @@ export function useKeyboardShortcuts({
     onToggleDarkMode,
     onNewDiagram,
     onOpenDiagram,
+    onZoomIn,
+    onZoomOut,
+    onResetZoom,
   ]);
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    // capture: true para interceptar antes do browser processar os atalhos
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [handleKeyDown]);
 }
 

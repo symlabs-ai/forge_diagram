@@ -5,6 +5,16 @@ Todas as mudancas notaveis neste projeto serao documentadas neste arquivo.
 O formato e baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Versionamento Semantico](https://semver.org/lang/pt-BR/).
 
+## [0.2.1] - 2025-12-13
+
+### Adicionado
+- **Atalhos de Zoom** - Ctrl+=/+ (zoom in), Ctrl+- (zoom out), Ctrl+0 (reset zoom) sobrepondo atalhos do browser
+- **Botao Redraw** - Redesenha o diagrama restaurando layout original, preservando nivel de zoom atual
+- **PlantUML Drag & Drop** - Arraste nodes em diagramas PlantUML com reconexao automatica de arestas
+
+### Alterado
+- Botao Reset Zoom substituido por Redraw na toolbar
+
 ## [0.2.0] - 2025-12-13
 
 ### Adicionado

@@ -32,7 +32,7 @@ export interface ToolbarProps {
   toggleOrientation: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
-  resetTransform: () => void;
+  onRedraw: () => void;
   // Export
   onExportPng: () => void;
   onExportSvg: () => void;

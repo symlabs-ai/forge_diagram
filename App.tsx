@@ -328,6 +328,24 @@ const App: React.FC = () => {
     }
   }, [transformState.scale]);
 
+  // Redraw handler - re-renders the diagram to restore original layout while preserving zoom
+  const handleRedraw = useCallback(() => {
+    // Save current transform state from the tracked state
+    const currentScale = transformState.scale;
+    const currentX = transformState.positionX;
+    const currentY = transformState.positionY;
+
+    // Trigger re-render
+    setRefreshKey(prev => prev + 1);
+
+    // Restore transform after re-render
+    setTimeout(() => {
+      if (transformComponentRef.current) {
+        transformComponentRef.current.setTransform(currentX, currentY, currentScale);
+      }
+    }, 100);
+  }, [transformState]);
+
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onSave: handleSave,
@@ -338,6 +356,9 @@ const App: React.FC = () => {
       history.clear(INITIAL_CODE);
       setRefreshKey(prev => prev + 1);
     }, [history]),
+    onZoomIn: useCallback(() => transformComponentRef.current?.zoomIn(), []),
+    onZoomOut: useCallback(() => transformComponentRef.current?.zoomOut(), []),
+    onResetZoom: useCallback(() => transformComponentRef.current?.resetTransform(), []),
   });
 
   return (
@@ -353,7 +374,7 @@ const App: React.FC = () => {
         toggleOrientation={handleToggleOrientation}
         zoomIn={() => transformComponentRef.current?.zoomIn()}
         zoomOut={() => transformComponentRef.current?.zoomOut()}
-        resetTransform={() => transformComponentRef.current?.resetTransform()}
+        onRedraw={handleRedraw}
         // Export
         onExportPng={exportHook.exportPng}
         onExportSvg={exportHook.exportSvg}
