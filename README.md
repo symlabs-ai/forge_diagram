@@ -2,7 +2,7 @@
 
 Editor profissional de diagramas Mermaid com preview em tempo real, temas customizados e suporte offline.
 
-![forge Diagram](https://img.shields.io/badge/version-0.1.1-blue.svg)
+![forge Diagram](https://img.shields.io/badge/version-0.2.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## Features

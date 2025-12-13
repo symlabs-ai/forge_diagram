@@ -5,6 +5,22 @@ Todas as mudancas notaveis neste projeto serao documentadas neste arquivo.
 O formato e baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Versionamento Semantico](https://semver.org/lang/pt-BR/).
 
+## [0.2.0] - 2025-12-13
+
+### Adicionado
+- **Toolbar Mobile Simplificada** - Apenas botoes essenciais: Templates, Dark Mode, Orientacao, Zoom, Share, PNG, Copy
+- **Preview Padrao no Mobile** - Aba Preview abre por padrao em dispositivos moveis
+- **Deteccao de Links Compartilhados no PWA** - Links compartilhados agora funcionam corretamente no PWA instalado
+
+### Alterado
+- **Renomeado para forge Diagram** - Novo nome do projeto (antes forge Draw)
+
+### Corrigido
+- **Build Vite com Cytoscape** - Resolvido erro de modulo UMD do cytoscape durante build de producao
+- **Diagrama Cortado ao Arrastar** - SVG agora usa overflow visible para nao cortar nas bordas
+- **Centralizacao do Diagrama** - Diagrama permanece centralizado apos correcao de clipping
+- **Cache do PWA** - Atualizada versao do cache do Service Worker para forcar refresh
+
 ## [0.1.1] - 2025-12-12
 
 ### Adicionado
