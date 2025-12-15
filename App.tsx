@@ -1469,15 +1469,21 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
         globalRenderCounter += 1;
         const id = `mermaid${globalRenderCounter}`;
 
+        // Strip markdown code fences if present (e.g., ```mermaid ... ```)
+        let codeToRender = code.trim();
+        const codeFenceMatch = codeToRender.match(/^```(?:mermaid)?\s*\n([\s\S]*?)\n```$/);
+        if (codeFenceMatch) {
+          codeToRender = codeFenceMatch[1].trim();
+        }
+
         // Para classDiagram, usa init directive para forçar re-render completo
-        let codeToRender = code;
-        if (code.trim().toLowerCase().startsWith('classdiagram')) {
-          const hasLR = /direction\s+LR/i.test(code);
+        if (codeToRender.toLowerCase().startsWith('classdiagram')) {
+          const hasLR = /direction\s+LR/i.test(codeToRender);
           const direction = hasLR ? 'LR' : 'TB';
           // Usa timestamp + counter para garantir que cada render seja único
           const cacheBuster = `${globalRenderCounter}_${Date.now()}`;
           const initDirective = `%%{init: {'flowchart': {'diagramPadding': ${cacheBuster.length}}, 'themeVariables': {'cacheBust': '${cacheBuster}'}}}%%\n`;
-          codeToRender = initDirective + code.replace(/direction\s+(TD|TB|LR|RL)/gi, `direction ${direction}`);
+          codeToRender = initDirective + codeToRender.replace(/direction\s+(TD|TB|LR|RL)/gi, `direction ${direction}`);
         }
 
         const { svg } = await mermaidInstance.render(id, codeToRender);

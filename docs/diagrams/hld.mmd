@@ -1,0 +1,24 @@
+```mermaid
+flowchart TD;
+
+User([User]) --> UI["UI React (components/*)"];
+
+subgraph App["forge_diagram SPA (React + Vite)"];
+    UI --> State["Estado (hooks/*)"];
+    State --> Logic["Logica de dominio (utils/*)"];
+    Logic --> Render["Renderizacao Mermaid / Markdown"];
+    Logic --> Workspace["Workspace (File System Access API ou upload de pasta)"];
+    Logic --> Export["Exportar / Compartilhar / Embed"];
+    State <--> Persistence["Persistencia (localStorage + IndexedDB)"];
+end;
+
+Render --> Preview["Preview vivo (Mermaid.js / PlantUML remoto)"];
+Workspace --> FS["Arquivos locais (leitura e escrita)"];
+Export --> Destinos["PNG | SVG | Markdown | URL comprimida"];
+Persistence --> AutoSave["Auto-save + recuperacao"];
+
+classDef box fill:#eef2ff,stroke:#6366f1,stroke-width:1px,color:#0f172a;
+classDef storage fill:#e2e8f0,stroke:#475569,stroke-width:1px,color:#0f172a;
+class UI,State,Logic,Render,Workspace,Export box;
+class Persistence,AutoSave storage;
+```

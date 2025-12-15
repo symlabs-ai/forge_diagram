@@ -1,0 +1,95 @@
+```mermaid
+classDiagram
+    class DiagramTab {
+      +string id
+      +string name
+      +string code
+      +boolean isDirty
+      +TabType type
+      +string filePath
+      +number createdAt
+    }
+
+    class TabType {
+      <<enumeration>>
+      diagram
+      markdown
+    }
+
+    class Workspace {
+      +string name
+      +string rootPath
+      +FileNode[] files
+      +FileSystemDirectoryHandle handle
+      +boolean isVirtual
+    }
+
+    class FileNode {
+      +string name
+      +string path
+      +FileType type
+      +FileNode[] children
+      +FileSystemFileHandle handle
+      +string content
+    }
+
+    class FileType {
+      <<enumeration>>
+      file
+      folder
+    }
+
+    class SavedDiagram {
+      +string id
+      +string name
+      +string code
+      +number createdAt
+      +number updatedAt
+    }
+
+    class DiagramStorage {
+      +number version
+      +SavedDiagram[] diagrams
+    }
+
+    class HistoryState {
+      +string[] past
+      +string present
+      +string[] future
+    }
+
+    class ExportRequest {
+      +string svgContent
+      +string code
+      +MermaidTheme theme
+      +ExportFormat format
+    }
+
+    class MermaidTheme {
+      +string id
+      +string name
+      +Record<string,string> variables
+    }
+
+    class ExportFormat {
+      <<enumeration>>
+      png
+      svg
+      pdf
+    }
+
+    class ShareUrl {
+      +encodeForUrl(code)
+      +decodeFromUrl(hash)
+    }
+
+    DiagramTab --> TabType
+    Workspace *-- FileNode
+    FileNode --> FileType
+    DiagramStorage *-- SavedDiagram
+    HistoryState --> DiagramTab : controla código ativo
+    ExportRequest --> MermaidTheme
+    ExportRequest --> ExportFormat
+    ShareUrl --> DiagramTab : usa code
+    Workspace --> DiagramTab : abre arquivos em abas
+```

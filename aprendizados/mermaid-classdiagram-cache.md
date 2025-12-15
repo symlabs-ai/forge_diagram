@@ -1,5 +1,7 @@
 # Mermaid: Cache de Layout em classDiagram
 
+> Este arquivo também documenta armadilhas de sintaxe do parser do Mermaid encontradas no projeto.
+
 ## Problema
 
 Ao alternar a direção (`direction TD` / `direction LR`) em um `classDiagram`, o Mermaid não re-renderiza o layout corretamente após a primeira mudança. O diagrama fica "travado" em uma orientação.
@@ -67,3 +69,70 @@ Esta solução pode ser necessária para outros tipos de diagrama que usam `dire
 
 - Mermaid versão: 10.6.1
 - Data: 2025-12-12
+
+---
+
+## Sintaxe do Mermaid: armadilhas com labels e múltiplos nós
+
+### 1. `\n` dentro do rótulo de um nó
+
+Em vários ambientes (plugins/embeds/versões mais antigas do Mermaid), `\n` **não é aceito** dentro de `[]`/`()`. Exemplos problemáticos:
+
+- `UI[UI React\n(components/*)]`
+- `App[App.tsx\n(composição/fluxo)]`
+
+Isso faz o parser se perder e gerar erros genéricos do tipo:
+
+> Expecting 'SQE', ... got 'PS'
+
+**Boas práticas:**
+
+- Preferir uma linha só: `UI["UI React (components/*)"]`
+- Quando o renderer suportar HTML, usar `<br/>` em vez de `\n`:
+  - `UI["UI React<br/>(components/*)"]`
+
+### 2. Dois nós “soltos” na mesma linha dentro de `subgraph`
+
+O Mermaid **não permite** declarar dois nós na mesma linha sem:
+
+- uma ligação (`-->`, `<-->`, etc.), ou
+- um separador explícito (por exemplo `;`), ou
+- uma quebra de linha real.
+
+Exemplo problemático (após um “achatamento” de linhas):
+
+```mermaid
+subgraph External["Dependências externas"]
+    Tailwind[Tailwind (CDN)] Pako[pako (compressão)]
+end
+```
+
+**Boas práticas:**
+
+- Um nó por linha:
+
+  ```mermaid
+  Tailwind["Tailwind (CDN)"]
+  Pako["pako (compressão)"]
+  ```
+
+- Ou terminar cada declaração com `;`, o que ajuda quando o ambiente achata quebras de linha:
+
+  ```mermaid
+  Tailwind["Tailwind (CDN)"];
+  Pako["pako (compressão)"];
+  ```
+
+### 3. Renderizadores que “achatam” quebras de linha
+
+Alguns renderizadores/integrações convertem o código Mermaid em uma única linha (por minificação ou serialização), o que:
+
+- junta nós que estavam em linhas diferentes
+- pode remover ou escapar `\n` de formas inesperadas
+
+**Solução robusta para o projeto:**
+
+- Sempre terminar statements com `;` em `flowchart`/`graph`/`subgraph`
+- Evitar `\n` em labels; usar uma linha só ou `<br/>` quando realmente necessário e suportado
+
+Essas regras tornam os diagramas mais resilientes a preprocessamentos e evitam erros de parse “misteriosos” no Mermaid.

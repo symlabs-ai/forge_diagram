@@ -1,0 +1,48 @@
+```mermaid
+flowchart TB;
+
+subgraph Components["components/* (UI)"];
+    ActivityBar --> Sidebar --> TabBar --> Toolbar;
+    CodeEditor --> MarkdownPreview --> Minimap;
+    Dialogs["Dialogs (Save/Load/Share/Embed/Import)"];
+    FileExplorer --> FileTreeItem --> SearchPanel;
+end;
+
+subgraph Hooks["hooks/* (estado)"];
+    useTabs --> useHistory --> useVisualHistory;
+    useWorkspace --> useDiagramStorage --> useExport;
+    useKeyboardShortcuts --> useActivityBar --> useMediaQuery;
+end;
+
+subgraph Utils["utils/* (domínio)"];
+    Mermaid["mermaidUtils / mermaidThemes / mermaidLinter"];
+    PlantUML["plantumlUtils"];
+    Storage["storageUtils / fileSystemUtils / shareUtils"];
+    Export["exportUtils / embedUtils / diagramTemplates"];
+end;
+
+App["App.tsx (composição / fluxo)"] --> Components;
+App --> Hooks;
+Hooks --> Utils;
+Components --> Utils;
+
+subgraph External["Dependências externas"];
+    CodeMirror[CodeMirror 6];
+    MermaidJS[Mermaid.js];
+    PUPL[PlantUML Server];
+    Tailwind["Tailwind (CDN)"];
+    Pako["pako (compressão)"];
+    RZPP[react-zoom-pan-pinch];
+    D3[d3];
+end;
+
+Utils --> MermaidJS;
+Utils --> PUPL;
+Utils --> Pako;
+
+Components --> CodeMirror;
+Components --> RZPP;
+Components --> D3;
+
+App --> Tailwind;
+```
