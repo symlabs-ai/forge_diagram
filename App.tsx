@@ -714,13 +714,57 @@ const App: React.FC = () => {
 
 // --- GEOMETRY HELPERS ---
 
+// Detect node shape type from Mermaid classes and SVG structure
+const getNodeShape = (node: Element): 'rectangle' | 'diamond' | 'circle' | 'default' => {
+  const classList = node.classList;
+
+  // Check for polygon-based shapes (diamonds in flowcharts)
+  const polygon = node.querySelector('polygon');
+  if (polygon) {
+    const points = polygon.getAttribute('points');
+    if (points) {
+      // Parse points to check if it's a diamond (4 vertices forming a rhombus)
+      const pointPairs = points.trim().split(/\s+/).filter(p => p.includes(','));
+      if (pointPairs.length === 4) {
+        // Check if it's a rhombus by verifying the shape
+        // A diamond has vertices at top, right, bottom, left
+        return 'diamond';
+      }
+    }
+  }
+
+  // Check for path-based diamonds (some Mermaid versions use path instead of polygon)
+  const pathEl = node.querySelector('path.label-container');
+  if (pathEl) {
+    const d = pathEl.getAttribute('d');
+    // Diamond paths typically have 4 line segments
+    if (d && (d.match(/L/g) || []).length >= 3) {
+      return 'diamond';
+    }
+  }
+
+  // Mermaid decision nodes have specific classes
+  if (classList.contains('decision') || classList.contains('question')) {
+    return 'diamond';
+  }
+
+  // Check for circles/ellipses
+  if (classList.contains('circle') ||
+      node.querySelector('circle') ||
+      node.querySelector('ellipse')) {
+    return 'circle';
+  }
+
+  return 'rectangle';
+};
+
 // Get the BBox of a node including its current transform
 const getNodeBBox = (node: Element) => {
   const el = node as any;
   const bbox = el.getBBox(); // Local coordinates (untransformed)
   const transform = d3.select(node).attr("transform");
   let tx = 0, ty = 0;
-  
+
   if (transform) {
     // Handle translate(x,y) or translate(x)
     const match = /translate\(\s*([-\d.]+)[,\s]*([-\d.]*)\s*\)/.exec(transform);
@@ -732,14 +776,16 @@ const getNodeBBox = (node: Element) => {
 
   const x = bbox.x + tx;
   const y = bbox.y + ty;
-  
+  const shape = getNodeShape(node);
+
   return {
     x,
     y,
     width: bbox.width,
     height: bbox.height,
     cx: x + bbox.width / 2,
-    cy: y + bbox.height / 2
+    cy: y + bbox.height / 2,
+    shape
   };
 };
 
@@ -754,17 +800,74 @@ const isPointInBBox = (point: {x: number, y: number}, bbox: ReturnType<typeof ge
   );
 };
 
-// Calculate the intersection point between a line (from center to targetCenter) and the node's bounding box
-const getIntersection = (rect: any, targetCenter: {cx: number, cy: number}) => {
+// Calculate intersection for a diamond shape
+const getDiamondIntersection = (rect: any, targetCenter: {cx: number, cy: number}) => {
     const dx = targetCenter.cx - rect.cx;
     const dy = targetCenter.cy - rect.cy;
-    
+
     // If centers are the same, return center
     if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) return { x: rect.cx, y: rect.cy };
 
     const w = rect.width / 2;
     const h = rect.height / 2;
-    
+
+    // For a diamond, the edges are at 45-degree angles from the corners
+    // The diamond has vertices at: top (cx, cy-h), right (cx+w, cy), bottom (cx, cy+h), left (cx-w, cy)
+    // We need to find where the line from center to target intersects the diamond edge
+
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // The diamond edge equation: |x - cx|/w + |y - cy|/h = 1
+    // Parametric line: x = cx + t*dx, y = cy + t*dy
+    // Substituting: t * (|dx|/w + |dy|/h) = 1
+    // So: t = 1 / (|dx|/w + |dy|/h)
+
+    const t = 1 / (absDx / w + absDy / h);
+
+    return {
+        x: rect.cx + t * dx,
+        y: rect.cy + t * dy
+    };
+};
+
+// Calculate intersection for a circle shape
+const getCircleIntersection = (rect: any, targetCenter: {cx: number, cy: number}) => {
+    const dx = targetCenter.cx - rect.cx;
+    const dy = targetCenter.cy - rect.cy;
+
+    // If centers are the same, return center
+    if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) return { x: rect.cx, y: rect.cy };
+
+    const r = Math.min(rect.width, rect.height) / 2;
+    const dist = Math.hypot(dx, dy);
+
+    return {
+        x: rect.cx + (dx / dist) * r,
+        y: rect.cy + (dy / dist) * r
+    };
+};
+
+// Calculate the intersection point between a line (from center to targetCenter) and the node's shape
+const getIntersection = (rect: any, targetCenter: {cx: number, cy: number}) => {
+    // Use shape-specific intersection if available
+    if (rect.shape === 'diamond') {
+        return getDiamondIntersection(rect, targetCenter);
+    }
+    if (rect.shape === 'circle') {
+        return getCircleIntersection(rect, targetCenter);
+    }
+
+    // Default: rectangle intersection
+    const dx = targetCenter.cx - rect.cx;
+    const dy = targetCenter.cy - rect.cy;
+
+    // If centers are the same, return center
+    if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) return { x: rect.cx, y: rect.cy };
+
+    const w = rect.width / 2;
+    const h = rect.height / 2;
+
     // Avoid division by zero
     if (dx === 0) return { x: rect.cx, y: rect.cy + (dy > 0 ? h : -h) };
     if (dy === 0) return { x: rect.cx + (dx > 0 ? w : -w), y: rect.cy };
@@ -793,7 +896,7 @@ const getIntersection = (rect: any, targetCenter: {cx: number, cy: number}) => {
             ix = rect.cx - h * (dx / dy);
         }
     }
-    
+
     return { x: ix, y: iy };
 };
 
