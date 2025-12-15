@@ -538,12 +538,6 @@ const App: React.FC = () => {
         // Persistence
         onSave={handleSave}
         onLoad={handleLoad}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        autoSaveEnabled={storage.autoSaveEnabled}
-        onToggleAutoSave={storage.toggleAutoSave}
         // Theme & Templates
         themeSelector={
           <ThemeSelector

@@ -52,12 +52,6 @@ export interface ToolbarProps {
   // Persistence
   onSave: () => void;
   onLoad: () => void;
-  onUndo: () => void;
-  onRedo: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
-  autoSaveEnabled: boolean;
-  onToggleAutoSave: () => void;
   // Theme & Templates
   themeSelector?: React.ReactNode;
   templateSelector?: React.ReactNode;
