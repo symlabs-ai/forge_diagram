@@ -1,0 +1,108 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#7c3aed', 'primaryTextColor': '#fff', 'primaryBorderColor': '#6d28d9', 'lineColor': '#8b5cf6'}}}%%
+flowchart TB
+    subgraph root["/ (Root)"]
+        AppTsx["App.tsx"]
+        MainTsx["main.tsx"]
+        TypesTs["types.ts"]
+        IndexHtml["index.html"]
+    end
+
+    subgraph components["components/"]
+        direction TB
+
+        subgraph layout["Layout Components"]
+            ActivityBar_c["ActivityBar.tsx"]
+            Sidebar_c["Sidebar.tsx"]
+            TabBar_c["TabBar.tsx"]
+            Toolbar_c["Toolbar.tsx"]
+            MobileTabBar_c["MobileTabBar.tsx"]
+            ResizeHandle_c["ResizeHandle.tsx"]
+        end
+
+        subgraph editors["Editor Components"]
+            CodeEditor_c["CodeEditor.tsx"]
+            Editor_c["Editor.tsx"]
+            MarkdownPreview_c["MarkdownPreview.tsx"]
+            Minimap_c["Minimap.tsx"]
+        end
+
+        subgraph dialogs["Dialog Components"]
+            SaveLoadDialog_c["SaveLoadDialog.tsx"]
+            ShareDialog_c["ShareDialog.tsx"]
+            ImportDialog_c["ImportDialog.tsx"]
+            EmbedDialog_c["EmbedDialog.tsx"]
+        end
+
+        subgraph selectors["Selector Components"]
+            ThemeSelector_c["ThemeSelector.tsx"]
+            TemplateSelector_c["TemplateSelector.tsx"]
+            MarkdownThemeSelector_c["MarkdownThemeSelector.tsx"]
+        end
+
+        subgraph filesystem["File System Components"]
+            FileExplorer_c["FileExplorer.tsx"]
+            FileTreeItem_c["FileTreeItem.tsx"]
+            SearchPanel_c["SearchPanel.tsx"]
+        end
+    end
+
+    subgraph hooks["hooks/"]
+        direction TB
+
+        subgraph stateHooks["State Management"]
+            useTabs_h["useTabs.ts"]
+            useActivityBar_h["useActivityBar.ts"]
+            useDiagramStorage_h["useDiagramStorage.ts"]
+            useWorkspace_h["useWorkspace.ts"]
+        end
+
+        subgraph editorHooks["Editor Hooks"]
+            useHistory_h["useHistory.ts"]
+            useVisualHistory_h["useVisualHistory.ts"]
+            useExport_h["useExport.ts"]
+            useKeyboardShortcuts_h["useKeyboardShortcuts.ts"]
+        end
+
+        subgraph utilHooks["Utility Hooks"]
+            useMediaQuery_h["useMediaQuery.ts"]
+        end
+    end
+
+    subgraph utils["utils/"]
+        direction TB
+
+        subgraph diagramUtils["Diagram Utils"]
+            mermaidUtils_u["mermaidUtils.ts"]
+            mermaidThemes_u["mermaidThemes.ts"]
+            mermaidLinter_u["mermaidLinter.ts"]
+            plantumlUtils_u["plantumlUtils.ts"]
+            diagramTemplates_u["diagramTemplates.ts"]
+            markdownThemes_u["markdownThemes.ts"]
+        end
+
+        subgraph ioUtils["I/O Utils"]
+            exportUtils_u["exportUtils.ts"]
+            importUtils_u["importUtils.ts"]
+            shareUtils_u["shareUtils.ts"]
+            embedUtils_u["embedUtils.ts"]
+        end
+
+        subgraph storageUtils["Storage Utils"]
+            storageUtils_u["storageUtils.ts"]
+            fileSystemUtils_u["fileSystemUtils.ts"]
+        end
+    end
+
+    %% Dependencies
+    AppTsx --> components
+    AppTsx --> hooks
+    components --> utils
+    hooks --> utils
+    components --> TypesTs
+    hooks --> TypesTs
+
+    %% Inter-component dependencies
+    layout --> selectors
+    editors --> diagramUtils
+    dialogs --> ioUtils
+    filesystem --> storageUtils

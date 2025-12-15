@@ -1,0 +1,94 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4f46e5', 'primaryTextColor': '#fff', 'primaryBorderColor': '#3730a3', 'lineColor': '#6366f1', 'secondaryColor': '#818cf8', 'tertiaryColor': '#c7d2fe'}}}%%
+flowchart TB
+    subgraph UserInterface["Camada de Apresentacao (UI)"]
+        direction TB
+        App["App.tsx<br/>Root Component"]
+
+        subgraph Navigation["Navegacao"]
+            ActivityBar["ActivityBar"]
+            Sidebar["Sidebar"]
+            TabBar["TabBar"]
+            Toolbar["Toolbar"]
+        end
+
+        subgraph Editors["Editores"]
+            CodeEditor["CodeEditor<br/>(CodeMirror)"]
+            MarkdownPreview["MarkdownPreview"]
+        end
+
+        subgraph Dialogs["Dialogos"]
+            SaveLoad["SaveLoadDialog"]
+            Share["ShareDialog"]
+            Import["ImportDialog"]
+            Embed["EmbedDialog"]
+        end
+
+        subgraph FileSystem["Sistema de Arquivos"]
+            FileExplorer["FileExplorer"]
+            SearchPanel["SearchPanel"]
+        end
+    end
+
+    subgraph StateManagement["Camada de Estado (Hooks)"]
+        direction TB
+        useTabs["useTabs<br/>Gerencia abas"]
+        useHistory["useHistory<br/>Undo/Redo"]
+        useWorkspace["useWorkspace<br/>File System"]
+        useStorage["useDiagramStorage<br/>Persistencia"]
+        useActivityBar["useActivityBar<br/>Sidebar state"]
+        useExport["useExport<br/>Exportacao"]
+        useKeyboard["useKeyboardShortcuts<br/>Atalhos"]
+    end
+
+    subgraph BusinessLogic["Camada de Logica de Negocio (Utils)"]
+        direction TB
+
+        subgraph DiagramUtils["Diagramas"]
+            mermaidUtils["mermaidUtils"]
+            mermaidThemes["mermaidThemes"]
+            plantumlUtils["plantumlUtils"]
+            templates["diagramTemplates"]
+        end
+
+        subgraph IOUtils["Import/Export"]
+            exportUtils["exportUtils"]
+            importUtils["importUtils"]
+            shareUtils["shareUtils"]
+            embedUtils["embedUtils"]
+        end
+
+        subgraph StorageUtils["Armazenamento"]
+            storageUtils["storageUtils"]
+            fileSystemUtils["fileSystemUtils"]
+        end
+    end
+
+    subgraph Persistence["Camada de Persistencia"]
+        direction LR
+        LocalStorage[("localStorage")]
+        IndexedDB[("IndexedDB")]
+        URLHash[("URL Hash")]
+        FileSystemAPI[("File System<br/>Access API")]
+    end
+
+    subgraph ExternalServices["Servicos Externos"]
+        MermaidJS["Mermaid.js"]
+        PlantUMLServer["PlantUML Server"]
+    end
+
+    %% Conexoes principais
+    App --> Navigation
+    App --> Editors
+    App --> Dialogs
+    App --> FileSystem
+
+    Navigation --> StateManagement
+    Editors --> StateManagement
+    Dialogs --> StateManagement
+    FileSystem --> StateManagement
+
+    StateManagement --> BusinessLogic
+    BusinessLogic --> Persistence
+
+    Editors --> ExternalServices
+    DiagramUtils --> ExternalServices

@@ -157,6 +157,55 @@ function parseMarkdown(markdown: string): string {
   // Horizontal rule
   html = html.replace(/^(-{3,}|\*{3,}|_{3,})$/gm, '<hr />');
 
+  // Tables - process before lists to avoid conflicts
+  html = html.replace(
+    /^(\|.+\|)\n(\|[-:\s|]+\|)\n((?:\|.+\|\n?)+)/gm,
+    (match, headerRow, separatorRow, bodyRows) => {
+      // Parse alignment from separator row
+      const alignments = separatorRow
+        .split('|')
+        .filter((cell: string) => cell.trim())
+        .map((cell: string) => {
+          const trimmed = cell.trim();
+          if (trimmed.startsWith(':') && trimmed.endsWith(':')) return 'center';
+          if (trimmed.endsWith(':')) return 'right';
+          return 'left';
+        });
+
+      // Parse header cells
+      const headerCells = headerRow
+        .split('|')
+        .filter((cell: string) => cell.trim() !== '')
+        .map((cell: string, i: number) => {
+          const align = alignments[i] || 'left';
+          return `<th style="text-align: ${align}">${cell.trim()}</th>`;
+        })
+        .join('');
+
+      // Parse body rows
+      const bodyRowsHtml = bodyRows
+        .trim()
+        .split('\n')
+        .map((row: string) => {
+          const cells = row
+            .split('|')
+            .filter((cell: string) => cell.trim() !== '')
+            .map((cell: string, i: number) => {
+              const align = alignments[i] || 'left';
+              return `<td style="text-align: ${align}">${cell.trim()}</td>`;
+            })
+            .join('');
+          return `<tr>${cells}</tr>`;
+        })
+        .join('\n');
+
+      return `<table class="md-table">
+<thead><tr>${headerCells}</tr></thead>
+<tbody>${bodyRowsHtml}</tbody>
+</table>`;
+    }
+  );
+
   // Unordered lists
   html = html.replace(/^[\*\-]\s+(.*)$/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
@@ -181,6 +230,12 @@ function parseMarkdown(markdown: string): string {
         line.startsWith('<pre') ||
         line.startsWith('<blockquote') ||
         line.startsWith('<hr') ||
+        line.startsWith('<table') ||
+        line.startsWith('<thead') ||
+        line.startsWith('<tbody') ||
+        line.startsWith('<tr') ||
+        line.startsWith('<th') ||
+        line.startsWith('<td') ||
         line.startsWith('<div class="diagram') ||
         line.startsWith('%%%CODEBLOCK_') ||
         line.startsWith('</')) {
@@ -469,6 +524,27 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDar
           border-radius: 0.25em;
           font-family: 'JetBrains Mono', monospace;
           font-size: 0.875em;
+        }
+        .markdown-preview .md-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 1em 0;
+          font-size: 0.9em;
+        }
+        .markdown-preview .md-table th,
+        .markdown-preview .md-table td {
+          padding: 0.75em 1em;
+          border: 1px solid ${isDarkMode ? '#374151' : '#e5e7eb'};
+        }
+        .markdown-preview .md-table th {
+          background: ${isDarkMode ? '#1f2937' : '#f3f4f6'};
+          font-weight: 600;
+        }
+        .markdown-preview .md-table tr:nth-child(even) {
+          background: ${isDarkMode ? '#1e293b' : '#f9fafb'};
+        }
+        .markdown-preview .md-table tr:hover {
+          background: ${isDarkMode ? '#334155' : '#f3f4f6'};
         }
         .markdown-preview hr {
           border: none;

@@ -1,0 +1,57 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#16a34a', 'primaryTextColor': '#fff', 'primaryBorderColor': '#15803d', 'lineColor': '#22c55e'}}}%%
+sequenceDiagram
+    autonumber
+    participant U as Usuario
+    participant FE as FileExplorer
+    participant UW as useWorkspace
+    participant FSU as fileSystemUtils
+    participant FSAPI as File System API
+    participant IDB as IndexedDB
+    participant UT as useTabs
+
+    Note over U,UT: Abrir Pasta (File System Access API)
+
+    U->>FE: Click "Open Folder"
+    FE->>UW: openFolder()
+    UW->>FSU: isFileSystemAccessSupported()
+    FSU-->>UW: true
+
+    UW->>FSAPI: showDirectoryPicker()
+    FSAPI-->>U: Dialog nativo
+    U->>FSAPI: Seleciona pasta
+    FSAPI-->>UW: DirectoryHandle
+
+    UW->>IDB: Salvar handle
+    UW->>FSU: readDirectoryRecursive(handle)
+    FSU->>FSAPI: entries()
+    loop Para cada entrada
+        FSAPI-->>FSU: FileHandle ou DirectoryHandle
+        FSU->>FSU: Filtrar .mmd, .md, .puml
+    end
+    FSU-->>UW: FileNode[]
+    UW-->>FE: workspace
+
+    Note over U,UT: Selecionar Arquivo
+
+    U->>FE: Click em arquivo.mmd
+    FE->>UW: readFile(path)
+    UW->>FSU: readFileContent(handle)
+    FSU->>FSAPI: getFile()
+    FSAPI-->>FSU: File
+    FSU->>FSU: file.text()
+    FSU-->>UW: content
+
+    UW->>UT: updateTabCode() ou addTab()
+    UT-->>U: Aba atualizada
+
+    Note over U,UT: Fallback (Safari/Firefox)
+
+    U->>FE: Click "Open Folder"
+    FE->>UW: openFolder()
+    UW->>FSU: isFileSystemAccessSupported()
+    FSU-->>UW: false
+    UW->>U: Input[webkitdirectory]
+    U->>UW: Seleciona pasta
+    UW->>FSU: processUploadedFiles(files)
+    FSU-->>UW: Virtual FileNode[]
+    Note right of UW: Workspace read-only

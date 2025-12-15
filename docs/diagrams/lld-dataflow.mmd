@@ -1,0 +1,101 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#059669', 'primaryTextColor': '#fff', 'primaryBorderColor': '#047857', 'lineColor': '#10b981'}}}%%
+flowchart TB
+    subgraph UserInput["Entrada do Usuario"]
+        Typing["Digitacao no Editor"]
+        FileOpen["Abrir Arquivo"]
+        TemplateSelect["Selecionar Template"]
+        ThemeChange["Mudar Tema"]
+        Export["Exportar/Compartilhar"]
+    end
+
+    subgraph CodeFlow["Fluxo de Codigo"]
+        CodeEditor["CodeEditor"]
+        onChange["onChange()"]
+        updateTabCode["updateTabCode()"]
+        useHistoryPush["useHistory.setValue()"]
+        AutoSave["Auto-save (5s)"]
+    end
+
+    subgraph RenderFlow["Fluxo de Renderizacao"]
+        DetectType{"Tipo de<br/>Arquivo?"}
+        MermaidRender["Mermaid.render()"]
+        PlantUMLRender["PlantUML Server"]
+        MarkdownParse["parseMarkdown()"]
+        Preview["Preview Component"]
+        Minimap["Minimap Update"]
+    end
+
+    subgraph ExportFlow["Fluxo de Exportacao"]
+        ExportPNG["exportPng()"]
+        ExportSVG["exportSvg()"]
+        ShareURL["generateShareUrl()"]
+        CopyClipboard["Clipboard API"]
+        Download["Download File"]
+    end
+
+    subgraph PersistenceFlow["Fluxo de Persistencia"]
+        SaveToStorage["saveDiagram()"]
+        LoadFromStorage["getDiagrams()"]
+        TabsPersist["localStorage<br/>'forge-draw-tabs'"]
+        DiagramsPersist["localStorage<br/>'mermaid-pro-viz-diagrams'"]
+        WorkspaceHandle["IndexedDB<br/>FileSystemHandle"]
+    end
+
+    subgraph WorkspaceFlow["Fluxo de Workspace"]
+        OpenFolder["openFolder()"]
+        FSAccessAPI{"File System<br/>Access API?"}
+        DirectoryPicker["showDirectoryPicker()"]
+        FallbackUpload["Input webkitdirectory"]
+        ReadDirectory["readDirectoryRecursive()"]
+        FileTree["FileNode Tree"]
+        FileSelect["Selecionar Arquivo"]
+        ReadContent["readFileContent()"]
+    end
+
+    %% User Input connections
+    Typing --> CodeEditor
+    FileOpen --> WorkspaceFlow
+    TemplateSelect --> updateTabCode
+    ThemeChange --> MermaidRender
+    Export --> ExportFlow
+
+    %% Code Flow
+    CodeEditor --> onChange
+    onChange --> updateTabCode
+    updateTabCode --> useHistoryPush
+    updateTabCode --> AutoSave
+    AutoSave --> TabsPersist
+
+    %% Render Flow
+    updateTabCode --> DetectType
+    DetectType -->|".mmd/.mermaid"| MermaidRender
+    DetectType -->|".puml"| PlantUMLRender
+    DetectType -->|".md"| MarkdownParse
+    MermaidRender --> Preview
+    PlantUMLRender --> Preview
+    MarkdownParse --> Preview
+    Preview --> Minimap
+
+    %% Export Flow
+    Preview -->|SVG| ExportPNG
+    Preview -->|SVG| ExportSVG
+    updateTabCode -->|code| ShareURL
+    ExportPNG --> Download
+    ExportSVG --> Download
+    ShareURL --> CopyClipboard
+
+    %% Persistence Flow
+    SaveToStorage --> DiagramsPersist
+    LoadFromStorage --> DiagramsPersist
+
+    %% Workspace Flow
+    OpenFolder --> FSAccessAPI
+    FSAccessAPI -->|Sim| DirectoryPicker
+    FSAccessAPI -->|Nao| FallbackUpload
+    DirectoryPicker --> ReadDirectory
+    FallbackUpload --> ReadDirectory
+    ReadDirectory --> FileTree
+    DirectoryPicker --> WorkspaceHandle
+    FileTree --> FileSelect
+    FileSelect --> ReadContent
+    ReadContent --> updateTabCode
