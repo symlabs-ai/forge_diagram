@@ -3,7 +3,7 @@
  * Provides offline functionality with cache-first strategy
  */
 
-const CACHE_NAME = 'forge-diagram-v2';
+const CACHE_NAME = 'forge-diagram-v3';
 
 // Assets to cache on install
 const STATIC_ASSETS = [
@@ -59,6 +59,14 @@ self.addEventListener('fetch', (event) => {
 
   // Skip chrome-extension and other non-http requests
   if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
+  // For localhost dev server - always network first (HMR needs fresh files)
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
     return;
   }
 

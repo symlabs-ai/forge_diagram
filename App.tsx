@@ -23,6 +23,7 @@ import { useExport } from './hooks/useExport';
 import { useHistory } from './hooks/useHistory';
 import { useDiagramStorage } from './hooks/useDiagramStorage';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useVisualHistory, NodeTransform } from './hooks/useVisualHistory';
 
 const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
@@ -116,9 +117,22 @@ const App: React.FC = () => {
   const history = useHistory(tabs.activeTab.code);
   const code = history.value;
 
+  // Visual history for node positions (drag operations)
+  const visualHistory = useVisualHistory();
+
+  // Ref to store function for applying transforms to SVG nodes
+  const applyTransformsRef = useRef<((transforms: NodeTransform[]) => void) | null>(null);
+
+  // Ref to store function for restoring SVG snapshot
+  const restoreSvgSnapshotRef = useRef<((svgHTML: string) => void) | null>(null);
+
+  // Track last action type for unified undo/redo
+  const lastActionRef = useRef<'code' | 'visual'>('code');
+
   // Sync history with active tab when tab changes
   useEffect(() => {
     history.clear(tabs.activeTab.code);
+    visualHistory.clear();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs.activeTabId]);
 
@@ -182,10 +196,103 @@ const App: React.FC = () => {
   }, [code]);
 
   const handleCodeChange = React.useCallback((newCode: string) => {
+    console.log('[DEBUG] handleCodeChange called, newCode length:', newCode.length);
     history.setValue(newCode);
+    console.log('[DEBUG] after setValue, canUndo:', history.canUndo);
     tabs.updateTabCode(tabs.activeTabId, newCode);
+    lastActionRef.current = 'code';
     setError(null);
   }, [history, tabs]);
+
+  // Handler for visual state changes (drag start - saves SVG snapshot BEFORE the change)
+  const handleVisualStateSave = useCallback((svgElement: SVGSVGElement | null) => {
+    if (!svgElement) {
+      console.log('[DEBUG] handleVisualStateSave called with null SVG');
+      return;
+    }
+    const svgHTML = svgElement.outerHTML;
+    console.log('[DEBUG] handleVisualStateSave saving SVG snapshot, length:', svgHTML.length);
+    visualHistory.pushSnapshot(svgHTML);
+    lastActionRef.current = 'visual';
+  }, [visualHistory.pushSnapshot]);
+
+  // Get current SVG HTML for redo support
+  const getCurrentSvgHtml = useCallback((): string | null => {
+    const container = document.querySelector('.react-transform-component svg');
+    return container ? (container as SVGSVGElement).outerHTML : null;
+  }, []);
+
+  // Unified undo handler
+  const handleUndo = useCallback(() => {
+    console.log('[DEBUG] handleUndo called');
+    console.log('[DEBUG] lastAction:', lastActionRef.current);
+    console.log('[DEBUG] history.canUndo:', history.canUndo);
+    console.log('[DEBUG] visualHistory.canUndo:', visualHistory.canUndo);
+
+    // Check which history to undo based on what's available
+    if (lastActionRef.current === 'visual' && visualHistory.canUndo) {
+      console.log('[DEBUG] Undoing visual snapshot');
+      // Save current state for redo before undoing
+      const currentSvg = getCurrentSvgHtml();
+      if (currentSvg) {
+        visualHistory.pushSnapshotToFuture(currentSvg);
+      }
+      const snapshot = visualHistory.undoSnapshot();
+      if (snapshot && restoreSvgSnapshotRef.current) {
+        console.log('[DEBUG] Restoring SVG snapshot from', new Date(snapshot.timestamp).toISOString());
+        restoreSvgSnapshotRef.current(snapshot.svgInnerHTML);
+      }
+      // Check if we should switch to code history next
+      if (!visualHistory.canUndo && history.canUndo) {
+        lastActionRef.current = 'code';
+      }
+    } else if (history.canUndo) {
+      console.log('[DEBUG] Undoing code');
+      history.undo();
+      lastActionRef.current = 'code';
+    } else if (visualHistory.canUndo) {
+      console.log('[DEBUG] Undoing visual snapshot (fallback)');
+      // Save current state for redo before undoing
+      const currentSvg = getCurrentSvgHtml();
+      if (currentSvg) {
+        visualHistory.pushSnapshotToFuture(currentSvg);
+      }
+      const snapshot = visualHistory.undoSnapshot();
+      if (snapshot && restoreSvgSnapshotRef.current) {
+        restoreSvgSnapshotRef.current(snapshot.svgInnerHTML);
+      }
+    } else {
+      console.log('[DEBUG] Nothing to undo');
+    }
+  }, [history, visualHistory, getCurrentSvgHtml]);
+
+  // Unified redo handler
+  const handleRedo = useCallback(() => {
+    console.log('[DEBUG] handleRedo called');
+    console.log('[DEBUG] history.canRedo:', history.canRedo);
+    console.log('[DEBUG] visualHistory.canRedo:', visualHistory.canRedo);
+
+    if (visualHistory.canRedo) {
+      console.log('[DEBUG] Redoing visual snapshot');
+      // Save current state for undo before redoing (use pushSnapshotToPast to not clear future)
+      const currentSvg = getCurrentSvgHtml();
+      if (currentSvg) {
+        visualHistory.pushSnapshotToPast(currentSvg);
+      }
+      const snapshot = visualHistory.redoSnapshot();
+      if (snapshot && restoreSvgSnapshotRef.current) {
+        console.log('[DEBUG] Restoring SVG snapshot from', new Date(snapshot.timestamp).toISOString());
+        restoreSvgSnapshotRef.current(snapshot.svgInnerHTML);
+      }
+      lastActionRef.current = 'visual';
+    } else if (history.canRedo) {
+      console.log('[DEBUG] Redoing code');
+      history.redo();
+      lastActionRef.current = 'code';
+    } else {
+      console.log('[DEBUG] Nothing to redo');
+    }
+  }, [history, visualHistory, getCurrentSvgHtml]);
 
   const handleToggleOrientation = () => {
     // Detecta orientação diretamente do código atual (evita estado dessincronizado)
@@ -337,16 +444,26 @@ const App: React.FC = () => {
     }, 100);
   }, [transformState]);
 
+  // Combined canUndo/canRedo considering both histories
+  const canUndo = history.canUndo || visualHistory.canUndo;
+  const canRedo = history.canRedo || visualHistory.canRedo;
+
+  // Debug: log canUndo changes
+  useEffect(() => {
+    console.log('[DEBUG] canUndo changed:', canUndo, '(history:', history.canUndo, ', visual:', visualHistory.canUndo, ') - lastAction:', lastActionRef.current);
+  }, [canUndo, history.canUndo, visualHistory.canUndo]);
+
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onSave: handleSave,
-    onUndo: history.undo,
-    onRedo: history.redo,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
     onToggleFullscreen: handleToggleFullscreen,
     onNewDiagram: useCallback(() => {
       history.clear(INITIAL_CODE);
+      visualHistory.clear();
       setRefreshKey(prev => prev + 1);
-    }, [history]),
+    }, [history, visualHistory]),
     onZoomIn: useCallback(() => transformComponentRef.current?.zoomIn(), []),
     onZoomOut: useCallback(() => transformComponentRef.current?.zoomOut(), []),
     onResetZoom: useCallback(() => transformComponentRef.current?.resetTransform(), []),
@@ -377,10 +494,10 @@ const App: React.FC = () => {
         // Persistence
         onSave={handleSave}
         onLoad={handleLoad}
-        onUndo={history.undo}
-        onRedo={history.redo}
-        canUndo={history.canUndo}
-        canRedo={history.canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
         autoSaveEnabled={storage.autoSaveEnabled}
         onToggleAutoSave={storage.toggleAutoSave}
         // Theme & Templates
@@ -447,8 +564,8 @@ const App: React.FC = () => {
             isDarkMode={isDarkMode}
             error={error}
             onSave={handleSave}
-            onUndo={history.undo}
-            onRedo={history.redo}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
           />
         </div>
 
@@ -519,6 +636,9 @@ const App: React.FC = () => {
                      setIsDraggingNode={setIsDraggingNode}
                      onCodeChange={handleCodeChange}
                      onSvgUpdate={handleSvgUpdate}
+                     onDragStart={handleVisualStateSave}
+                     applyTransformsRef={applyTransformsRef}
+                     restoreSvgSnapshotRef={restoreSvgSnapshotRef}
                    />
                 </TransformComponent>
             </TransformWrapper>
@@ -719,12 +839,263 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
   onSuccess,
   setIsDraggingNode,
   onCodeChange,
-  onSvgUpdate
+  onSvgUpdate,
+  onDragStart,
+  applyTransformsRef,
+  restoreSvgSnapshotRef
 }) => {
   const [svgContent, setSvgContent] = useState<string>('');
+  const [d3RefreshKey, setD3RefreshKey] = useState(0); // Force D3 re-init
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isEditingRef = useRef<boolean>(false);
+
+  // Function to restore SVG from snapshot
+  const restoreSvgSnapshot = useCallback((svgHTML: string) => {
+    console.log('[DEBUG] restoreSvgSnapshot called, length:', svgHTML.length);
+    if (!containerRef.current) {
+      console.log('[DEBUG] containerRef.current is null');
+      return;
+    }
+    // Replace the SVG content directly in DOM
+    containerRef.current.innerHTML = svgHTML;
+    // Extract just the SVG part
+    const svgMatch = svgHTML.match(/<svg[\s\S]*<\/svg>/i);
+    if (svgMatch) {
+      // Update svgContent AND increment refresh key to force D3 re-init
+      // This ensures drag handlers are re-attached even if svgContent value is same
+      setSvgContent(svgMatch[0]);
+      setD3RefreshKey(k => k + 1);
+    }
+    console.log('[DEBUG] SVG snapshot restored, triggering D3 refresh');
+  }, []);
+
+  // Register restoreSvgSnapshot with parent
+  useEffect(() => {
+    if (restoreSvgSnapshotRef) {
+      restoreSvgSnapshotRef.current = restoreSvgSnapshot;
+    }
+    return () => {
+      if (restoreSvgSnapshotRef) {
+        restoreSvgSnapshotRef.current = null;
+      }
+    };
+  }, [restoreSvgSnapshotRef, restoreSvgSnapshot]);
+
+  // Collect all current node transforms
+  const collectNodeTransforms = useCallback((): NodeTransform[] => {
+    console.log('[DEBUG] collectNodeTransforms called');
+    if (!containerRef.current) {
+      console.log('[DEBUG] containerRef.current is null');
+      return [];
+    }
+
+    const transforms: NodeTransform[] = [];
+    const svg = d3.select(containerRef.current).select("svg");
+    if (svg.empty()) {
+      console.log('[DEBUG] SVG is empty');
+      return [];
+    }
+
+    // Collect Mermaid nodes
+    const mermaidNodes = svg.selectAll(".node");
+    console.log('[DEBUG] Found', mermaidNodes.size(), 'Mermaid nodes');
+    mermaidNodes.each(function() {
+      const node = d3.select(this);
+      const nodeId = node.attr("id") || node.attr("data-id") || '';
+      const transform = node.attr("transform");
+      let x = 0, y = 0;
+
+      if (transform) {
+        const match = /translate\(\s*([-\d.]+)[,\s]*([-\d.]*)\s*\)/.exec(transform);
+        if (match) {
+          x = parseFloat(match[1]) || 0;
+          y = parseFloat(match[2]) || 0;
+        }
+      }
+
+      console.log('[DEBUG] Mermaid node:', nodeId, 'transform:', transform);
+      if (nodeId) {
+        transforms.push({ nodeId, x, y });
+      }
+    });
+
+    // Collect PlantUML entities
+    const plantUMLNodes = svg.selectAll("g.entity");
+    console.log('[DEBUG] Found', plantUMLNodes.size(), 'PlantUML entities');
+    plantUMLNodes.each(function() {
+      const node = d3.select(this);
+      const nodeId = node.attr("id") || node.attr("data-entity") || '';
+      const transform = node.attr("transform");
+      let x = 0, y = 0;
+
+      if (transform) {
+        const match = /translate\(\s*([-\d.]+)[,\s]*([-\d.]*)\s*\)/.exec(transform);
+        if (match) {
+          x = parseFloat(match[1]) || 0;
+          y = parseFloat(match[2]) || 0;
+        }
+      }
+
+      console.log('[DEBUG] PlantUML node:', nodeId, 'transform:', transform);
+      if (nodeId) {
+        transforms.push({ nodeId, x, y });
+      }
+    });
+
+    return transforms;
+  }, []);
+
+  // Apply transforms to nodes (for undo/redo)
+  const applyNodeTransforms = useCallback((transforms: NodeTransform[]) => {
+    console.log('[DEBUG] applyNodeTransforms called with', transforms.length, 'transforms');
+    if (!containerRef.current) {
+      console.log('[DEBUG] applyNodeTransforms: containerRef.current is null');
+      return;
+    }
+
+    const svg = d3.select(containerRef.current).select("svg");
+    if (svg.empty()) {
+      console.log('[DEBUG] applyNodeTransforms: SVG is empty');
+      return;
+    }
+
+    // Apply transforms to nodes
+    let applied = 0;
+    transforms.forEach(({ nodeId, x, y }) => {
+      let node = svg.select(`#${CSS.escape(nodeId)}`);
+      if (node.empty()) {
+        node = svg.select(`[data-entity="${nodeId}"]`);
+      }
+      if (!node.empty()) {
+        node.attr("transform", `translate(${x}, ${y})`);
+        applied++;
+      }
+    });
+    console.log('[DEBUG] Applied', applied, 'node transforms');
+
+    // Update all edges after applying node transforms
+    const nodes = svg.selectAll(".node");
+    const edges = svg.selectAll(".edgePaths path");
+    const labels = svg.selectAll(".edgeLabels .edgeLabel");
+
+    // Build node data for edge calculations
+    const nodeData = nodes.nodes().map((n: any) => ({
+      element: n,
+      bbox: getNodeBBox(n)
+    }));
+
+    // Build edge metadata
+    interface EdgeMeta {
+      edgeEl: any;
+      labelEl: any;
+      sourceNode: any;
+      targetNode: any;
+    }
+    const edgeMeta: EdgeMeta[] = [];
+
+    edges.each(function() {
+      const el = d3.select(this);
+      const dAttr = el.attr("d");
+      if (!dAttr) return;
+
+      const numbers = dAttr.match(/-?\d+(\.\d+)?/g)?.map(parseFloat);
+      if (!numbers || numbers.length < 4) return;
+
+      const startX = numbers[0];
+      const startY = numbers[1];
+      const endX = numbers[numbers.length - 2];
+      const endY = numbers[numbers.length - 1];
+
+      let bestStartNode = null;
+      let bestEndNode = null;
+      let minStartDist = Infinity;
+      let minEndDist = Infinity;
+
+      nodeData.forEach((nd: any) => {
+        const distStart = Math.hypot(nd.bbox.cx - startX, nd.bbox.cy - startY);
+        const inStart = isPointInBBox({x: startX, y: startY}, nd.bbox);
+        if (inStart || distStart < minStartDist) {
+          if (inStart) { bestStartNode = nd.element; minStartDist = -1; }
+          else if (minStartDist !== -1) { minStartDist = distStart; bestStartNode = nd.element; }
+        }
+
+        const distEnd = Math.hypot(nd.bbox.cx - endX, nd.bbox.cy - endY);
+        const inEnd = isPointInBBox({x: endX, y: endY}, nd.bbox);
+        if (inEnd || distEnd < minEndDist) {
+          if (inEnd) { bestEndNode = nd.element; minEndDist = -1; }
+          else if (minEndDist !== -1) { minEndDist = distEnd; bestEndNode = nd.element; }
+        }
+      });
+
+      if (minStartDist > 200 && minStartDist !== -1) bestStartNode = null;
+      if (minEndDist > 200 && minEndDist !== -1) bestEndNode = null;
+
+      if (bestStartNode && bestEndNode) {
+        const edgeMidX = (startX + endX) / 2;
+        const edgeMidY = (startY + endY) / 2;
+
+        let closestLabel: any = null;
+        let minLabelDist = Infinity;
+
+        labels.each(function() {
+          const labelNode = this as SVGGElement;
+          const labelTransform = d3.select(labelNode).attr("transform");
+          let labelX = 0, labelY = 0;
+          if (labelTransform) {
+            const match = /translate\(\s*([-\d.]+)[,\s]*([-\d.]*)\s*\)/.exec(labelTransform);
+            if (match) { labelX = parseFloat(match[1]) || 0; labelY = parseFloat(match[2]) || 0; }
+          }
+          const dist = Math.hypot(labelX - edgeMidX, labelY - edgeMidY);
+          if (dist < minLabelDist) { minLabelDist = dist; closestLabel = labelNode; }
+        });
+
+        edgeMeta.push({
+          edgeEl: el,
+          labelEl: minLabelDist < 150 ? closestLabel : null,
+          sourceNode: bestStartNode,
+          targetNode: bestEndNode
+        });
+      }
+    });
+
+    // Update all edges
+    edgeMeta.forEach(item => {
+      const sourceBBox = getNodeBBox(item.sourceNode);
+      const targetBBox = getNodeBBox(item.targetNode);
+
+      if (item.sourceNode === item.targetNode) return;
+
+      const startPoint = getIntersection(sourceBBox, { cx: targetBBox.cx, cy: targetBBox.cy });
+      const endPoint = getIntersection(targetBBox, { cx: sourceBBox.cx, cy: sourceBBox.cy });
+
+      const newD = `M ${startPoint.x} ${startPoint.y} L ${endPoint.x} ${endPoint.y}`;
+      item.edgeEl.attr("d", newD);
+
+      if (item.labelEl) {
+        const midX = (startPoint.x + endPoint.x) / 2;
+        const midY = (startPoint.y + endPoint.y) / 2;
+        const labelBBox = (item.labelEl as SVGGElement).getBBox();
+        const centeredX = midX - labelBBox.width / 2;
+        const centeredY = midY - labelBBox.height / 2;
+        d3.select(item.labelEl).attr("transform", `translate(${centeredX}, ${centeredY})`);
+      }
+    });
+
+    console.log('[DEBUG] Updated', edgeMeta.length, 'edges');
+  }, []);
+
+  // Register applyNodeTransforms with parent
+  useEffect(() => {
+    if (applyTransformsRef) {
+      applyTransformsRef.current = applyNodeTransforms;
+    }
+    return () => {
+      if (applyTransformsRef) {
+        applyTransformsRef.current = null;
+      }
+    };
+  }, [applyTransformsRef, applyNodeTransforms]);
 
   // Notify parent of SVG content changes for export
   useEffect(() => {
@@ -1088,6 +1459,11 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
       // Drag behavior
       const plantUMLDrag = d3.drag()
         .on("start", function() {
+          // Save SVG snapshot BEFORE dragging for undo
+          if (onDragStart) {
+            const svgEl = svg.node() as SVGSVGElement | null;
+            onDragStart(svgEl);
+          }
           d3.select(this).raise().classed("active", true).style("cursor", "grabbing");
           setIsDraggingNode(true);
         })
@@ -1268,6 +1644,11 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
 
     const dragBehavior = d3.drag()
       .on("start", function() {
+        // Save SVG snapshot BEFORE dragging for undo
+        if (onDragStart) {
+          const svgEl = svg.node() as SVGSVGElement | null;
+          onDragStart(svgEl);
+        }
         d3.select(this).raise().classed("active", true).style("cursor", "grabbing");
         setIsDraggingNode(true);
       })
@@ -1275,7 +1656,7 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
         const node = d3.select(this);
         const transform = node.attr("transform");
         let currentX = 0, currentY = 0;
-        
+
         if (transform) {
           const match = /translate\(\s*([-\d.]+)[,\s]*([-\d.]*)\s*\)/.exec(transform);
           if (match) {
@@ -1287,7 +1668,7 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
         const newX = currentX + event.dx;
         const newY = currentY + event.dy;
         node.attr("transform", `translate(${newX}, ${newY})`);
-        
+
         updateConnectedEdges(this);
       })
       .on("end", function() {
@@ -1328,7 +1709,7 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
       });
     });
 
-  }, [svgContent, setIsDraggingNode]);
+  }, [svgContent, d3RefreshKey, setIsDraggingNode, onDragStart, collectNodeTransforms]);
 
   if (!svgContent) {
     return <div className="text-gray-400">Gerando visualização...</div>;

@@ -12,6 +12,12 @@ export interface EditorProps {
   error: string | null;
 }
 
+export interface NodeTransform {
+  nodeId: string;
+  x: number;
+  y: number;
+}
+
 export interface PreviewProps {
   code: string;
   isDarkMode: boolean;
@@ -20,6 +26,9 @@ export interface PreviewProps {
   setIsDraggingNode: (isDragging: boolean) => void;
   onCodeChange: (newCode: string) => void;
   onSvgUpdate?: (svg: string) => void;
+  onDragStart?: (svgElement: SVGSVGElement | null) => void;
+  applyTransformsRef?: React.MutableRefObject<((transforms: NodeTransform[]) => void) | null>;
+  restoreSvgSnapshotRef?: React.MutableRefObject<((svgHTML: string) => void) | null>;
 }
 
 export interface ToolbarProps {

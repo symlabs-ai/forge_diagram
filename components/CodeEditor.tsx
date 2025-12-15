@@ -126,8 +126,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   // Callback quando o conteúdo muda
   const handleChange = useCallback((update: any) => {
+    console.log('[CodeEditor] handleChange called, docChanged:', update.docChanged, 'isInternalChange:', isInternalChange.current);
     if (update.docChanged && !isInternalChange.current) {
       const newCode = update.state.doc.toString();
+      console.log('[CodeEditor] Calling onChange with code length:', newCode.length);
       onChange(newCode);
     }
   }, [onChange]);

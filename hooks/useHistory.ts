@@ -1,11 +1,4 @@
-import { useCallback, useReducer, useRef } from 'react';
-import type { DiagramHistory } from '../types';
-
-type HistoryAction =
-  | { type: 'SET'; value: string }
-  | { type: 'UNDO' }
-  | { type: 'REDO' }
-  | { type: 'CLEAR'; value: string };
+import { useCallback, useState } from 'react';
 
 interface UseHistoryOptions {
   maxSize?: number;
@@ -21,98 +14,71 @@ interface UseHistoryReturn {
   canRedo: boolean;
 }
 
-function historyReducer(state: DiagramHistory, action: HistoryAction): DiagramHistory {
-  switch (action.type) {
-    case 'SET': {
-      // Don't add to history if value hasn't changed
-      if (action.value === state.present) {
-        return state;
-      }
-      return {
-        past: [...state.past, state.present].slice(-50), // Keep max 50 history items
-        present: action.value,
-        future: [],
-      };
-    }
-    case 'UNDO': {
-      if (state.past.length === 0) return state;
-      const previous = state.past[state.past.length - 1];
-      const newPast = state.past.slice(0, -1);
-      return {
-        past: newPast,
-        present: previous,
-        future: [state.present, ...state.future],
-      };
-    }
-    case 'REDO': {
-      if (state.future.length === 0) return state;
-      const next = state.future[0];
-      const newFuture = state.future.slice(1);
-      return {
-        past: [...state.past, state.present],
-        present: next,
-        future: newFuture,
-      };
-    }
-    case 'CLEAR': {
-      return {
-        past: [],
-        present: action.value,
-        future: [],
-      };
-    }
-    default:
-      return state;
-  }
+interface HistoryState {
+  past: string[];
+  present: string;
+  future: string[];
 }
 
-export function useHistory(initialValue: string, _options: UseHistoryOptions = {}): UseHistoryReturn {
-  const [state, dispatch] = useReducer(historyReducer, {
+export function useHistory(initialValue: string, options: UseHistoryOptions = {}): UseHistoryReturn {
+  const maxSize = options.maxSize ?? 50;
+
+  const [state, setState] = useState<HistoryState>({
     past: [],
     present: initialValue,
     future: [],
   });
 
-  // Debounce history updates to avoid flooding with keystrokes
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingValueRef = useRef<string | null>(null);
-
   const setValue = useCallback((newValue: string) => {
-    pendingValueRef.current = newValue;
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    debounceRef.current = setTimeout(() => {
-      if (pendingValueRef.current !== null) {
-        dispatch({ type: 'SET', value: pendingValueRef.current });
-        pendingValueRef.current = null;
+    console.log('[useHistory] setValue called');
+    setState(prev => {
+      console.log('[useHistory] prev.present length:', prev.present.length, 'newValue length:', newValue.length);
+      // Don't add to history if value hasn't changed
+      if (newValue === prev.present) {
+        console.log('[useHistory] Value unchanged, skipping');
+        return prev;
       }
-    }, 500); // 500ms debounce for history
-  }, []);
+      console.log('[useHistory] Adding to history, past will have', prev.past.length + 1, 'entries');
+      return {
+        past: [...prev.past, prev.present].slice(-maxSize),
+        present: newValue,
+        future: [], // Clear future on new change
+      };
+    });
+  }, [maxSize]);
 
   const undo = useCallback(() => {
-    // Clear any pending debounced update before undo
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-      pendingValueRef.current = null;
-    }
-    dispatch({ type: 'UNDO' });
+    setState(prev => {
+      if (prev.past.length === 0) return prev;
+      const previous = prev.past[prev.past.length - 1];
+      const newPast = prev.past.slice(0, -1);
+      return {
+        past: newPast,
+        present: previous,
+        future: [prev.present, ...prev.future],
+      };
+    });
   }, []);
 
   const redo = useCallback(() => {
-    dispatch({ type: 'REDO' });
+    setState(prev => {
+      if (prev.future.length === 0) return prev;
+      const next = prev.future[0];
+      const newFuture = prev.future.slice(1);
+      return {
+        past: [...prev.past, prev.present],
+        present: next,
+        future: newFuture,
+      };
+    });
   }, []);
 
   const clear = useCallback((value: string) => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-      pendingValueRef.current = null;
-    }
-    dispatch({ type: 'CLEAR', value });
+    setState({
+      past: [],
+      present: value,
+      future: [],
+    });
   }, []);
 
   return {
