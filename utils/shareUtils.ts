@@ -11,6 +11,11 @@ import pako from 'pako';
  */
 export function encodeForUrl(code: string): string {
   try {
+    // Ensure code is a valid string
+    if (typeof code !== 'string' || !code) {
+      console.warn('encodeForUrl: code is not a valid string');
+      return '';
+    }
     const compressed = pako.deflate(code, { level: 9 });
     const base64 = btoa(String.fromCharCode(...compressed));
     // Make URL-safe

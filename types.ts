@@ -96,12 +96,16 @@ export interface AppSettings {
 }
 
 // Tab system types
+export type TabType = 'diagram' | 'markdown';
+
 export interface DiagramTab {
   id: string;
   name: string;
   code: string;
   isDirty: boolean;
   createdAt: number;
+  type: TabType; // 'diagram' for mermaid/plantuml, 'markdown' for .md files
+  filePath?: string; // Optional path if opened from workspace
 }
 
 export interface TabsState {
@@ -115,3 +119,34 @@ export interface DiagramStorage {
   version: number;
   diagrams: SavedDiagram[];
 }
+
+// Workspace/File Explorer types
+export type ActivityView = 'explorer' | 'search' | 'diagrams' | 'settings';
+
+export interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  children?: FileNode[];
+  handle?: FileSystemFileHandle | FileSystemDirectoryHandle;
+  content?: string; // Cached content for virtual workspace
+}
+
+export interface Workspace {
+  name: string;
+  rootPath: string;
+  files: FileNode[];
+  handle?: FileSystemDirectoryHandle;
+  isVirtual: boolean; // true = upload fallback, false = File System Access API
+}
+
+export interface SearchResult {
+  file: FileNode;
+  line: number;
+  content: string;
+  matchStart: number;
+  matchEnd: number;
+}
+
+// Supported file extensions for workspace
+export const SUPPORTED_EXTENSIONS = ['.mmd', '.mermaid', '.md', '.puml', '.plantuml'];

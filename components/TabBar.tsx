@@ -1,16 +1,30 @@
-import React, { useState } from 'react';
-import { DiagramTab, MAX_TABS } from '../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { DiagramTab, MAX_TABS, TabType } from '../types';
 
 interface TabBarProps {
   tabs: DiagramTab[];
   activeTabId: string;
   onSelectTab: (id: string) => void;
   onCloseTab: (id: string) => void;
-  onAddTab: () => void;
+  onAddTab: (type?: TabType) => void;
   onRenameTab: (id: string, name: string) => void;
   canAddTab: boolean;
   isDarkMode: boolean;
 }
+
+// Icon for diagram tabs
+const DiagramIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+  </svg>
+);
+
+// Icon for markdown tabs
+const MarkdownIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
 
 export const TabBar: React.FC<TabBarProps> = ({
   tabs,
@@ -24,6 +38,19 @@ export const TabBar: React.FC<TabBarProps> = ({
 }) => {
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleDoubleClick = (tab: DiagramTab) => {
     setEditingTabId(tab.id);
@@ -65,6 +92,13 @@ export const TabBar: React.FC<TabBarProps> = ({
           }`}
           onClick={() => onSelectTab(tab.id)}
         >
+          {/* Tab type icon */}
+          {tab.type === 'markdown' ? (
+            <MarkdownIcon className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
+          ) : (
+            <DiagramIcon className="w-3.5 h-3.5 flex-shrink-0 opacity-60" />
+          )}
+
           {/* Tab name or edit input */}
           {editingTabId === tab.id ? (
             <input
@@ -114,23 +148,66 @@ export const TabBar: React.FC<TabBarProps> = ({
         </div>
       ))}
 
-      {/* Add tab button */}
-      <button
-        onClick={onAddTab}
-        disabled={!canAddTab}
-        className={`p-1.5 rounded transition-colors ${
-          canAddTab
-            ? isDarkMode
-              ? 'text-gray-400 hover:bg-slate-700 hover:text-white'
-              : 'text-gray-500 hover:bg-gray-200 hover:text-gray-900'
-            : 'opacity-40 cursor-not-allowed'
-        }`}
-        title={canAddTab ? 'New tab' : `Maximum ${MAX_TABS} tabs reached`}
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-      </button>
+      {/* Add tab button with dropdown */}
+      <div className="relative" ref={addMenuRef}>
+        <button
+          onClick={() => setShowAddMenu(!showAddMenu)}
+          disabled={!canAddTab}
+          className={`p-1.5 rounded transition-colors flex items-center gap-0.5 ${
+            canAddTab
+              ? isDarkMode
+                ? 'text-gray-400 hover:bg-slate-700 hover:text-white'
+                : 'text-gray-500 hover:bg-gray-200 hover:text-gray-900'
+              : 'opacity-40 cursor-not-allowed'
+          }`}
+          title={canAddTab ? 'New tab' : `Maximum ${MAX_TABS} tabs reached`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {/* Dropdown menu */}
+        {showAddMenu && canAddTab && (
+          <div className={`absolute top-full left-0 mt-1 py-1 rounded-md shadow-lg border z-50 min-w-[140px] ${
+            isDarkMode
+              ? 'bg-slate-700 border-slate-600'
+              : 'bg-white border-gray-200'
+          }`}>
+            <button
+              onClick={() => {
+                onAddTab('diagram');
+                setShowAddMenu(false);
+              }}
+              className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                isDarkMode
+                  ? 'hover:bg-slate-600 text-gray-200'
+                  : 'hover:bg-gray-100 text-gray-700'
+              }`}
+            >
+              <DiagramIcon className="w-4 h-4" />
+              Diagram
+            </button>
+            <button
+              onClick={() => {
+                onAddTab('markdown');
+                setShowAddMenu(false);
+              }}
+              className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                isDarkMode
+                  ? 'hover:bg-slate-600 text-gray-200'
+                  : 'hover:bg-gray-100 text-gray-700'
+              }`}
+            >
+              <MarkdownIcon className="w-4 h-4" />
+              Markdown
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Tab count indicator */}
       <span className={`text-xs ml-auto pr-2 ${

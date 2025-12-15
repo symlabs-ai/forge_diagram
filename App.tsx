@@ -10,14 +10,21 @@ import { ResizeHandle, usePanelResize } from './components/ResizeHandle';
 import { Minimap } from './components/Minimap';
 import { MobileTabBar, MobileTab } from './components/MobileTabBar';
 import { TabBar } from './components/TabBar';
+import { ActivityBar } from './components/ActivityBar';
+import { Sidebar } from './components/Sidebar';
+import { FileExplorer } from './components/FileExplorer';
+import { SearchPanel } from './components/SearchPanel';
+import { MarkdownPreview } from './components/MarkdownPreview';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { useTabs } from './hooks/useTabs';
+import { useActivityBar } from './hooks/useActivityBar';
+import { useWorkspace } from './hooks/useWorkspace';
 import { detectOrientation, toggleOrientationInCode, INITIAL_CODE } from './utils/mermaidUtils';
 import { themes, MermaidTheme, applyThemeToCode } from './utils/mermaidThemes';
 import { getCodeFromUrl, copyShareUrl } from './utils/shareUtils';
 import { isPlantUML, renderPlantUML } from './utils/plantumlUtils';
 import { DiagramTemplate } from './utils/diagramTemplates';
-import { Orientation } from './types';
+import { Orientation, ActivityView, FileNode } from './types';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import * as d3 from "d3";
 import { useExport } from './hooks/useExport';
@@ -81,6 +88,46 @@ const App: React.FC = () => {
   // Tabs hook for managing multiple diagrams
   const tabs = useTabs(initialCode);
 
+  // Activity bar and workspace hooks
+  const activityBar = useActivityBar();
+  const workspace = useWorkspace();
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+
+  // Handle file selection from explorer
+  const handleFileSelect = useCallback(async (file: FileNode) => {
+    if (file.type !== 'file') return;
+
+    try {
+      const content = await workspace.readFile(file);
+      setSelectedFilePath(file.path);
+
+      // Detect file type based on extension
+      const isMarkdown = /\.md$/i.test(file.name);
+      const tabType = isMarkdown ? 'markdown' : 'diagram';
+
+      // Open file in a new tab or update current tab
+      const existingTab = tabs.tabs.find(t => t.name === file.name);
+      if (existingTab) {
+        tabs.selectTab(existingTab.id);
+      } else {
+        tabs.addTab({
+          code: content,
+          type: tabType,
+          name: file.name,
+          filePath: file.path,
+        });
+      }
+    } catch (e) {
+      console.error('Error opening file:', e);
+    }
+  }, [workspace, tabs]);
+
+  // Handle search result click
+  const handleSearchResultClick = useCallback(async (file: FileNode, line: number) => {
+    await handleFileSelect(file);
+    // TODO: scroll to line in editor
+  }, [handleFileSelect]);
+
   // Listen for URL hash changes (for PWA shared links)
   useEffect(() => {
     const handleHashChange = () => {
@@ -116,8 +163,8 @@ const App: React.FC = () => {
   }, [tabs]);
 
   // History hook for undo/redo (per active tab)
-  const history = useHistory(tabs.activeTab.code);
-  const code = history.value;
+  const history = useHistory(tabs.activeTab.code || '');
+  const code = history.value || '';
 
   // Visual history for node positions (drag operations)
   const visualHistory = useVisualHistory();
@@ -133,9 +180,11 @@ const App: React.FC = () => {
 
   // Sync history with active tab when tab changes
   useEffect(() => {
-    history.clear(tabs.activeTab.code);
+    // Ensure code is always a valid string
+    const tabCode = tabs.activeTab.code || '';
+    history.clear(tabCode);
     visualHistory.clear();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks-deps
   }, [tabs.activeTabId]);
 
   // Ref for the zoom wrapper instance
@@ -525,7 +574,7 @@ const App: React.FC = () => {
             activeTabId={tabs.activeTabId}
             onSelectTab={tabs.selectTab}
             onCloseTab={tabs.closeTab}
-            onAddTab={() => tabs.addTab()}
+            onAddTab={(type) => tabs.addTab({ type })}
             onRenameTab={tabs.renameTab}
             canAddTab={tabs.canAddTab}
             isDarkMode={isDarkMode}
@@ -542,8 +591,108 @@ const App: React.FC = () => {
         />
       )}
 
-      <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
-        {/* Editor Section - collapsible on desktop, tab-based on mobile */}
+      {/* Main content area with Activity Bar and Sidebar */}
+      <div className="flex-grow flex overflow-hidden">
+        {/* Activity Bar - desktop only */}
+        {!isMobile && (
+          <ActivityBar
+            activeView={activityBar.activeView}
+            onViewChange={activityBar.setActiveView}
+            isDarkMode={isDarkMode}
+            isSidebarOpen={activityBar.isSidebarOpen}
+          />
+        )}
+
+        {/* Sidebar - desktop only */}
+        {!isMobile && (
+          <Sidebar
+            isOpen={activityBar.isSidebarOpen}
+            width={activityBar.sidebarWidth}
+            onWidthChange={activityBar.setSidebarWidth}
+            isDarkMode={isDarkMode}
+            title={
+              activityBar.activeView === 'explorer' ? 'Explorer' :
+              activityBar.activeView === 'search' ? 'Buscar' :
+              activityBar.activeView === 'diagrams' ? 'Diagramas' :
+              'Configurações'
+            }
+          >
+            {activityBar.activeView === 'explorer' && (
+              <FileExplorer
+                workspace={workspace.workspace}
+                isLoading={workspace.isLoading}
+                selectedPath={selectedFilePath}
+                isDarkMode={isDarkMode}
+                onFileSelect={handleFileSelect}
+                onOpenFolder={workspace.openFolder}
+                onOpenFolderFallback={workspace.openFolderFallback}
+                onCloseWorkspace={workspace.closeWorkspace}
+                onRefresh={workspace.refreshFiles}
+                hasStoredWorkspace={workspace.hasStoredWorkspace}
+                onReopenLastWorkspace={workspace.reopenLastWorkspace}
+              />
+            )}
+            {activityBar.activeView === 'search' && (
+              <SearchPanel
+                workspace={workspace.workspace}
+                isDarkMode={isDarkMode}
+                onSearch={workspace.searchFiles}
+                onResultClick={handleSearchResultClick}
+              />
+            )}
+            {activityBar.activeView === 'diagrams' && (
+              <div className={`p-4 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                <p>Diagramas salvos aparecerão aqui.</p>
+                <button
+                  onClick={handleLoad}
+                  className={`mt-2 px-3 py-1.5 rounded text-sm ${
+                    isDarkMode
+                      ? 'bg-slate-700 hover:bg-slate-600'
+                      : 'bg-gray-200 hover:bg-gray-300'
+                  }`}
+                >
+                  Abrir diagramas salvos
+                </button>
+              </div>
+            )}
+            {activityBar.activeView === 'settings' && (
+              <div className={`p-4 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span>Auto-save</span>
+                    <button
+                      onClick={storage.toggleAutoSave}
+                      className={`px-2 py-1 rounded text-xs ${
+                        storage.autoSaveEnabled
+                          ? 'bg-green-500 text-white'
+                          : isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      {storage.autoSaveEnabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Minimap</span>
+                    <button
+                      onClick={() => setShowMinimap(!showMinimap)}
+                      className={`px-2 py-1 rounded text-xs ${
+                        showMinimap
+                          ? 'bg-green-500 text-white'
+                          : isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      {showMinimap ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Sidebar>
+        )}
+
+        {/* Main Editor/Preview area */}
+        <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+          {/* Editor Section - collapsible on desktop, tab-based on mobile */}
         <div
           className={`
             ${isMobile ? (mobileTab === 'editor' ? 'flex-1' : 'hidden') : ''}
@@ -602,54 +751,65 @@ const App: React.FC = () => {
           ref={previewContainerRef}
           className={`${isMobile ? (mobileTab === 'preview' ? 'flex-1' : 'hidden') : 'flex-1'} h-1/2 md:h-full p-4 bg-gray-100 dark:bg-slate-900 relative`}
         >
-          
-          <div className="h-full w-full shadow-xl rounded-lg bg-white dark:bg-slate-800 overflow-hidden flex flex-col relative">
-             <TransformWrapper
-                ref={transformComponentRef}
-                initialScale={1}
-                minScale={0.1}
-                maxScale={4}
-                centerOnInit={true}
-                limitToBounds={false}
-                wheel={{ step: 0.1 }}
-                doubleClick={{ disabled: true }}
-                disabled={isDraggingNode}
-                onTransformed={handleTransformChange}
-              >
-                <TransformComponent
-                  wrapperStyle={{ width: "100%", height: "100%" }}
-                  contentStyle={{ width: "100%", height: "100%" }}
-                  wrapperClass="w-full h-full"
-                  contentClass="w-full h-full flex items-center justify-center"
-                >
-                   <InnerMermaidRenderer
-                     key={refreshKey}
-                     code={code}
-                     isDarkMode={isDarkMode}
-                     onError={handleRenderError}
-                     onSuccess={handleRenderSuccess}
-                     setIsDraggingNode={setIsDraggingNode}
-                     onCodeChange={handleCodeChange}
-                     onSvgUpdate={handleSvgUpdate}
-                     onDragStart={handleVisualStateSave}
-                     applyTransformsRef={applyTransformsRef}
-                     restoreSvgSnapshotRef={restoreSvgSnapshotRef}
-                   />
-                </TransformComponent>
-            </TransformWrapper>
 
-            {/* Minimap */}
-            {showMinimap && svgContentRef.current && (
-              <Minimap
-                svgContent={svgContentRef.current}
-                scale={transformState.scale}
-                positionX={transformState.positionX}
-                positionY={transformState.positionY}
-                containerWidth={containerDimensions.width}
-                containerHeight={containerDimensions.height}
+          <div className="h-full w-full shadow-xl rounded-lg bg-white dark:bg-slate-800 overflow-hidden flex flex-col relative">
+            {/* Markdown Preview - for markdown tabs */}
+            {tabs.activeTab.type === 'markdown' ? (
+              <MarkdownPreview
+                content={code}
                 isDarkMode={isDarkMode}
-                onNavigate={handleMinimapNavigate}
               />
+            ) : (
+              /* Diagram Preview - for diagram tabs */
+              <>
+                <TransformWrapper
+                  ref={transformComponentRef}
+                  initialScale={1}
+                  minScale={0.1}
+                  maxScale={4}
+                  centerOnInit={true}
+                  limitToBounds={false}
+                  wheel={{ step: 0.1 }}
+                  doubleClick={{ disabled: true }}
+                  disabled={isDraggingNode}
+                  onTransformed={handleTransformChange}
+                >
+                  <TransformComponent
+                    wrapperStyle={{ width: "100%", height: "100%" }}
+                    contentStyle={{ width: "100%", height: "100%" }}
+                    wrapperClass="w-full h-full"
+                    contentClass="w-full h-full flex items-center justify-center"
+                  >
+                     <InnerMermaidRenderer
+                       key={refreshKey}
+                       code={code}
+                       isDarkMode={isDarkMode}
+                       onError={handleRenderError}
+                       onSuccess={handleRenderSuccess}
+                       setIsDraggingNode={setIsDraggingNode}
+                       onCodeChange={handleCodeChange}
+                       onSvgUpdate={handleSvgUpdate}
+                       onDragStart={handleVisualStateSave}
+                       applyTransformsRef={applyTransformsRef}
+                       restoreSvgSnapshotRef={restoreSvgSnapshotRef}
+                     />
+                  </TransformComponent>
+                </TransformWrapper>
+
+                {/* Minimap */}
+                {showMinimap && svgContentRef.current && (
+                  <Minimap
+                    svgContent={svgContentRef.current}
+                    scale={transformState.scale}
+                    positionX={transformState.positionX}
+                    positionY={transformState.positionY}
+                    containerWidth={containerDimensions.width}
+                    containerHeight={containerDimensions.height}
+                    isDarkMode={isDarkMode}
+                    onNavigate={handleMinimapNavigate}
+                  />
+                )}
+              </>
             )}
 
             {/* Fullscreen exit button */}
@@ -665,6 +825,7 @@ const App: React.FC = () => {
               </button>
             )}
           </div>
+        </div>
         </div>
       </div>
 
@@ -1874,3 +2035,4 @@ const InnerMermaidRenderer: React.FC<import('./types').PreviewProps> = ({
 };
 
 export default App;
+

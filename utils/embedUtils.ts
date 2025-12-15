@@ -28,6 +28,10 @@ export function generateIframeEmbed(
  * Generate standalone HTML embed with Mermaid script
  */
 export function generateHtmlEmbed(code: string): string {
+  // Ensure code is a valid string
+  if (typeof code !== 'string' || !code) {
+    return '<!-- No code provided -->';
+  }
   // Remove any init directives for clean embed
   const cleanCode = code.replace(/%%\{init:.*?\}%%\s*/gs, '').trim();
 
@@ -46,6 +50,10 @@ ${cleanCode}
  * Generate Markdown code block
  */
 export function generateMarkdownEmbed(code: string): string {
+  // Ensure code is a valid string
+  if (typeof code !== 'string' || !code) {
+    return '```\nNo code provided\n```';
+  }
   // Remove any init directives for clean embed
   const cleanCode = code.replace(/%%\{init:.*?\}%%\s*/gs, '').trim();
 
