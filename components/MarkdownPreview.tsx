@@ -1,9 +1,11 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { isPlantUML, renderPlantUML } from '../utils/plantumlUtils';
+import { MarkdownTheme, generateMarkdownCSS } from '../utils/markdownThemes';
 
 interface MarkdownPreviewProps {
   content: string;
   isDarkMode: boolean;
+  theme?: MarkdownTheme;
 }
 
 interface DiagramBlock {
@@ -89,7 +91,25 @@ function extractDiagrams(markdown: string): { html: string; diagrams: DiagramBlo
 function parseMarkdown(markdown: string): string {
   let html = markdown;
 
-  // Escape HTML first to prevent XSS (but not our placeholders)
+  // Process blockquotes FIRST (before HTML escape, since > would become &gt;)
+  // Match lines starting with > and optional space
+  html = html.replace(/^>\s?(.*)$/gm, '%%%BLOCKQUOTE_START%%%$1%%%BLOCKQUOTE_END%%%');
+
+  // Extract code blocks BEFORE HTML escaping to preserve their content
+  const codeBlocks: string[] = [];
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const index = codeBlocks.length;
+    const langClass = lang ? ` class="language-${lang}"` : '';
+    // Escape HTML inside code blocks separately
+    const escapedCode = code.trim()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    codeBlocks.push(`<pre class="code-block"><code${langClass}>${escapedCode}</code></pre>`);
+    return `%%%CODEBLOCK_${index}%%%`;
+  });
+
+  // Escape HTML to prevent XSS (but not our placeholders)
   html = html
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -98,11 +118,11 @@ function parseMarkdown(markdown: string): string {
     .replace(/&lt;div class="diagram-placeholder" data-diagram-id="([^"]+)"&gt;&lt;\/div&gt;/g,
       '<div class="diagram-placeholder" data-diagram-id="$1"></div>');
 
-  // Code blocks (must be processed before inline code)
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const langClass = lang ? ` class="language-${lang}"` : '';
-    return `<pre class="code-block"><code${langClass}>${code.trim()}</code></pre>`;
-  });
+  // Now convert blockquote markers to actual HTML
+  html = html.replace(/%%%BLOCKQUOTE_START%%%/g, '<blockquote>');
+  html = html.replace(/%%%BLOCKQUOTE_END%%%/g, '</blockquote>');
+  // Merge consecutive blockquotes
+  html = html.replace(/<\/blockquote>\n<blockquote>/g, '<br/>');
 
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
@@ -115,13 +135,15 @@ function parseMarkdown(markdown: string): string {
   html = html.replace(/^##\s+(.*)$/gm, '<h2>$1</h2>');
   html = html.replace(/^#\s+(.*)$/gm, '<h1>$1</h1>');
 
-  // Bold and italic
+  // Bold and italic (asterisks always work)
   html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  html = html.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
-  html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
-  html = html.replace(/_(.+?)_/g, '<em>$1</em>');
+  // Underscores only work at word boundaries (not inside words like admin_api_ui)
+  // Uses negative lookbehind/lookahead to ensure _ is not adjacent to alphanumeric chars
+  html = html.replace(/(?<![a-zA-Z0-9])___([^_\n]+?)___(?![a-zA-Z0-9])/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/(?<![a-zA-Z0-9])__([^_\n]+?)__(?![a-zA-Z0-9])/g, '<strong>$1</strong>');
+  html = html.replace(/(?<![a-zA-Z0-9])_([^_\n]+?)_(?![a-zA-Z0-9])/g, '<em>$1</em>');
 
   // Strikethrough
   html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
@@ -131,11 +153,6 @@ function parseMarkdown(markdown: string): string {
 
   // Images
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="md-image" />');
-
-  // Blockquotes
-  html = html.replace(/^>\s+(.*)$/gm, '<blockquote>$1</blockquote>');
-  // Merge consecutive blockquotes
-  html = html.replace(/<\/blockquote>\n<blockquote>/g, '\n');
 
   // Horizontal rule
   html = html.replace(/^(-{3,}|\*{3,}|_{3,})$/gm, '<hr />');
@@ -155,7 +172,7 @@ function parseMarkdown(markdown: string): string {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // Skip if it's already an HTML tag or empty or diagram placeholder
+    // Skip if it's already an HTML tag or empty or placeholder
     if (line === '' ||
         line.startsWith('<h') ||
         line.startsWith('<ul') ||
@@ -165,6 +182,7 @@ function parseMarkdown(markdown: string): string {
         line.startsWith('<blockquote') ||
         line.startsWith('<hr') ||
         line.startsWith('<div class="diagram') ||
+        line.startsWith('%%%CODEBLOCK_') ||
         line.startsWith('</')) {
       if (inParagraph) {
         processedLines.push('</p>');
@@ -188,6 +206,11 @@ function parseMarkdown(markdown: string): string {
 
   // Clean up empty paragraphs
   html = html.replace(/<p>\s*<\/p>/g, '');
+
+  // Restore code blocks from placeholders
+  codeBlocks.forEach((block, index) => {
+    html = html.replace(`%%%CODEBLOCK_${index}%%%`, block);
+  });
 
   return html;
 }
@@ -291,7 +314,7 @@ const DiagramRenderer: React.FC<{
   );
 };
 
-export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDarkMode }) => {
+export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDarkMode, theme }) => {
   const { html, diagrams } = useMemo(() => {
     const extracted = extractDiagrams(content || '');
     return {
@@ -301,6 +324,14 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDar
   }, [content]);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Generate themed CSS if theme is provided
+  const themedCSS = useMemo(() => {
+    if (theme) {
+      return generateMarkdownCSS(theme);
+    }
+    return '';
+  }, [theme]);
 
   // Render diagrams into placeholders after initial render
   useEffect(() => {
@@ -317,6 +348,38 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDar
     });
   }, [html, diagrams]);
 
+  // If theme is provided, use themed preview
+  if (theme) {
+    return (
+      <div className="markdown-preview-themed h-full overflow-auto">
+        <style>{themedCSS}</style>
+        <style>{`
+          .markdown-preview-themed .diagram-container {
+            display: flex;
+            justify-content: center;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+            overflow: auto;
+          }
+          .markdown-preview-themed .diagram-container svg {
+            max-width: 100%;
+            height: auto;
+          }
+        `}</style>
+
+        <div className="markdown-content" ref={containerRef}>
+          {diagrams.length === 0 ? (
+            <div dangerouslySetInnerHTML={{ __html: html }} />
+          ) : (
+            <MarkdownWithDiagrams html={html} diagrams={diagrams} isDarkMode={isDarkMode} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Default (non-themed) preview - fallback using isDarkMode
   return (
     <div
       className={`markdown-preview h-full overflow-auto p-6 ${

@@ -31,34 +31,42 @@ export interface PreviewProps {
   restoreSvgSnapshotRef?: React.MutableRefObject<((svgHTML: string) => void) | null>;
 }
 
+export type ToolbarMode = 'diagram' | 'markdown';
+
 export interface ToolbarProps {
+  // Mode determines which controls are shown
+  mode: ToolbarMode;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   onPrint: () => void;
   onRefresh?: () => void;
-  orientation: Orientation;
-  toggleOrientation: () => void;
-  zoomIn: () => void;
-  zoomOut: () => void;
-  onRedraw: () => void;
+  // Diagram-specific props (optional when mode is 'markdown')
+  orientation?: Orientation;
+  toggleOrientation?: () => void;
+  zoomIn?: () => void;
+  zoomOut?: () => void;
+  onRedraw?: () => void;
   // Export
-  onExportPng: () => void;
-  onExportSvg: () => void;
-  onExportMarkdown: () => void;
-  onCopySvg: () => void;
+  onExportPng?: () => void;
+  onExportSvg?: () => void;
+  onExportMarkdown?: () => void;
+  onCopySvg?: () => void;
   // Share
-  onShare: () => void;
-  onEmbed: () => void;
+  onShare?: () => void;
+  onEmbed?: () => void;
   // Persistence
   onSave: () => void;
   onLoad: () => void;
-  // Theme & Templates
+  onOpenFolder?: () => void;
+  // Theme & Templates (diagram mode)
   themeSelector?: React.ReactNode;
   templateSelector?: React.ReactNode;
+  // Markdown theme (markdown mode)
+  markdownThemeSelector?: React.ReactNode;
   // Fullscreen
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
-  // Minimap
+  // Minimap (diagram mode only)
   showMinimap?: boolean;
   onToggleMinimap?: () => void;
   // Mobile

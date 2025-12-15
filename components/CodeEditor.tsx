@@ -124,15 +124,27 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const viewRef = useRef<EditorView | null>(null);
   const isInternalChange = useRef(false);
 
-  // Callback quando o conteúdo muda
+  // Refs para callbacks para evitar recriação do editor
+  const onChangeRef = useRef(onChange);
+  const onUndoRef = useRef(onUndo);
+  const onRedoRef = useRef(onRedo);
+  const onSaveRef = useRef(onSave);
+
+  // Atualiza refs quando callbacks mudam
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onUndoRef.current = onUndo;
+    onRedoRef.current = onRedo;
+    onSaveRef.current = onSave;
+  }, [onChange, onUndo, onRedo, onSave]);
+
+  // Callback quando o conteúdo muda - usa ref para não recriar
   const handleChange = useCallback((update: any) => {
-    console.log('[CodeEditor] handleChange called, docChanged:', update.docChanged, 'isInternalChange:', isInternalChange.current);
     if (update.docChanged && !isInternalChange.current) {
       const newCode = update.state.doc.toString();
-      console.log('[CodeEditor] Calling onChange with code length:', newCode.length);
-      onChange(newCode);
+      onChangeRef.current(newCode);
     }
-  }, [onChange]);
+  }, []);
 
   // Cria as extensões do editor
   const createExtensions = useCallback(() => {
@@ -141,7 +153,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       {
         key: 'Mod-s',
         run: () => {
-          onSave?.();
+          onSaveRef.current?.();
           return true;
         },
         preventDefault: true,
@@ -150,8 +162,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       {
         key: 'Mod-z',
         run: (view) => {
-          if (onUndo) {
-            onUndo();
+          if (onUndoRef.current) {
+            onUndoRef.current();
             return true;
           }
           return undo(view);
@@ -161,8 +173,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       {
         key: 'Mod-y',
         run: (view) => {
-          if (onRedo) {
-            onRedo();
+          if (onRedoRef.current) {
+            onRedoRef.current();
             return true;
           }
           return redo(view);
@@ -171,8 +183,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       {
         key: 'Mod-Shift-z',
         run: (view) => {
-          if (onRedo) {
-            onRedo();
+          if (onRedoRef.current) {
+            onRedoRef.current();
             return true;
           }
           return redo(view);
@@ -219,7 +231,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       // Update listener
       EditorView.updateListener.of(handleChange),
     ];
-  }, [isDarkMode, handleChange, onSave, onUndo, onRedo]);
+  }, [isDarkMode, handleChange]);
 
   // Inicializa o editor
   useEffect(() => {
@@ -260,23 +272,39 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   }, [isDarkMode, createExtensions]);
 
   // Sincroniza código externo (quando o código muda de fora do editor)
+  // Só atualiza se o código realmente mudou E não foi uma mudança interna
+  const lastExternalCode = useRef(code);
+
   useEffect(() => {
     if (!viewRef.current) return;
 
     const view = viewRef.current;
     const currentCode = view.state.doc.toString();
 
-    if (code !== currentCode) {
+    // Só sincroniza se:
+    // 1. O código externo mudou em relação ao último código externo conhecido
+    // 2. E o código externo é diferente do que está no editor
+    // Isso evita re-sincronizar quando a mudança veio do próprio editor
+    if (code !== lastExternalCode.current && code !== currentCode) {
+      console.log('[CodeEditor] External code changed, syncing...');
       isInternalChange.current = true;
+
+      // Preserva a posição do cursor se possível
+      const cursorPos = view.state.selection.main.head;
+      const newCursorPos = Math.min(cursorPos, code.length);
+
       view.dispatch({
         changes: {
           from: 0,
           to: currentCode.length,
           insert: code,
         },
+        selection: { anchor: newCursorPos },
       });
       isInternalChange.current = false;
     }
+
+    lastExternalCode.current = code;
   }, [code]);
 
   return (

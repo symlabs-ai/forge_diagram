@@ -5,6 +5,20 @@ Todas as mudancas notaveis neste projeto serao documentadas neste arquivo.
 O formato e baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Versionamento Semantico](https://semver.org/lang/pt-BR/).
 
+## [0.3.0] - 2025-12-15
+
+### Adicionado
+- **Toolbar Contextual** - Toolbar muda conforme tipo de arquivo (diagrama vs markdown)
+- **Temas Markdown** - 10 temas para preview: Default, Default Dark, GitHub, Medium, Notion, Developer Dark, Typora, Livro, Minimal, Academic
+- **Open Folder via Toolbar** - Botao Open agora abre dropdown com opcoes File e Folder
+
+### Corrigido
+- **Cursor no Editor** - Corrigido bug que fazia cursor pular para inicio ao digitar
+- **Blockquotes Markdown** - Simbolo `>` agora renderiza corretamente como citacao
+- **Underscores em Palavras** - Texto como `admin_api_ui` nao e mais interpretado como italico
+- **Code Blocks** - Blocos de codigo nao multiplicam mais linhas em branco
+- **Resize do Sidebar** - Handle de resize do explorer agora funciona corretamente
+
 ## [0.2.2] - 2025-12-15
 
 ### Adicionado

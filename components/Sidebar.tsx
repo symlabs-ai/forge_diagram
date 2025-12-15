@@ -77,11 +77,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {children}
       </div>
 
-      {/* Resize handle */}
+      {/* Resize handle - wider for easier grabbing, positioned to overlap edge */}
       <div
-        className={`absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-indigo-500 transition-colors ${
-          isResizing ? 'bg-indigo-500' : ''
+        className={`absolute top-0 h-full cursor-ew-resize transition-colors z-50 ${
+          isResizing ? 'bg-indigo-500' : 'hover:bg-indigo-500/50'
         }`}
+        style={{
+          right: '-3px',
+          width: '6px',
+        }}
         onMouseDown={handleMouseDown}
       />
     </div>

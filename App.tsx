@@ -6,6 +6,8 @@ import { EmbedDialog } from './components/EmbedDialog';
 import { ShareDialog } from './components/ShareDialog';
 import { ThemeSelector } from './components/ThemeSelector';
 import { TemplateSelector } from './components/TemplateSelector';
+import { MarkdownThemeSelector } from './components/MarkdownThemeSelector';
+import { markdownThemes, MarkdownTheme, getMarkdownThemeById } from './utils/markdownThemes';
 import { ResizeHandle, usePanelResize } from './components/ResizeHandle';
 import { Minimap } from './components/Minimap';
 import { MobileTabBar, MobileTab } from './components/MobileTabBar';
@@ -49,6 +51,9 @@ const App: React.FC = () => {
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<MermaidTheme>(themes[0]);
+
+  // Markdown theme state
+  const [markdownTheme, setMarkdownTheme] = useState<MarkdownTheme>(markdownThemes[0]);
 
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -518,6 +523,7 @@ const App: React.FC = () => {
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-darker text-slate-900 dark:text-gray-100">
       
       <Toolbar
+        mode={tabs.activeTab?.type === 'markdown' ? 'markdown' : 'diagram'}
         isDarkMode={isDarkMode}
         toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         onPrint={handlePrint}
@@ -538,7 +544,8 @@ const App: React.FC = () => {
         // Persistence
         onSave={handleSave}
         onLoad={handleLoad}
-        // Theme & Templates
+        onOpenFolder={workspace.openFolder}
+        // Theme & Templates (diagram mode)
         themeSelector={
           <ThemeSelector
             currentThemeId={currentTheme.id}
@@ -549,6 +556,14 @@ const App: React.FC = () => {
         templateSelector={
           <TemplateSelector
             onSelectTemplate={handleSelectTemplate}
+            isDarkMode={isDarkMode}
+          />
+        }
+        // Markdown theme (markdown mode)
+        markdownThemeSelector={
+          <MarkdownThemeSelector
+            currentThemeId={markdownTheme.id}
+            onThemeChange={setMarkdownTheme}
             isDarkMode={isDarkMode}
           />
         }
@@ -752,6 +767,7 @@ const App: React.FC = () => {
               <MarkdownPreview
                 content={code}
                 isDarkMode={isDarkMode}
+                theme={markdownTheme}
               />
             ) : (
               /* Diagram Preview - for diagram tabs */
