@@ -101,22 +101,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
 
         {/* Share */}
-        <button onClick={onShare} className={buttonClass} title="Share">
+        <button onClick={onShare} className={buttonClass} title="Compartilhar & Exportar">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
-          </svg>
-        </button>
-
-        {/* PNG export */}
-        <button onClick={onExportPng} className={buttonClass} title="Export PNG">
-          <span className="text-xs font-bold">PNG</span>
-        </button>
-
-        {/* Copy SVG */}
-        <button onClick={onCopySvg} className={buttonClass} title="Copy SVG">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-            <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
           </svg>
         </button>
       </div>
@@ -305,7 +292,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={onShare}
           className={buttonClass}
-          title="Share URL (Copy to clipboard)"
+          title="Compartilhar & Exportar"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
@@ -323,37 +310,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />
 
-        <button
-          onClick={onExportPng}
-          className={buttonClass}
-          title="Export as PNG"
-        >
-          <span className="text-xs font-bold">PNG</span>
-        </button>
-        <button
-          onClick={onExportSvg}
-          className={buttonClass}
-          title="Export as SVG"
-        >
-          <span className="text-xs font-bold">SVG</span>
-        </button>
-        <button
-          onClick={onExportMarkdown}
-          className={buttonClass}
-          title="Export as Markdown"
-        >
-          <span className="text-xs font-bold">MD</span>
-        </button>
-        <button
-          onClick={onCopySvg}
-          className={buttonClass}
-          title="Copy SVG to Clipboard"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-            <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-          </svg>
-        </button>
         <button
           onClick={onPrint}
           className={buttonClass}

@@ -5,6 +5,16 @@ Todas as mudancas notaveis neste projeto serao documentadas neste arquivo.
 O formato e baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Versionamento Semantico](https://semver.org/lang/pt-BR/).
 
+## [0.2.2] - 2025-12-15
+
+### Adicionado
+- **ShareDialog** - Nova janela unificada de compartilhamento e exportacao (URL, PNG, SVG, Copy SVG, Markdown)
+- **Conexao de Arestas em Diamantes** - Arestas agora conectam corretamente em nodes diamante (decisao) e circulares
+
+### Alterado
+- **Toolbar Simplificada** - Botoes PNG, SVG, MD e Copy SVG movidos para ShareDialog
+- **Undo/Redo Visual** - Suporte a undo/redo para operacoes de drag de nodes via snapshots SVG
+
 ## [0.2.1] - 2025-12-13
 
 ### Adicionado

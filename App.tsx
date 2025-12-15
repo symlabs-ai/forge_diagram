@@ -3,6 +3,7 @@ import { CodeEditor } from './components/CodeEditor';
 import { Toolbar } from './components/Toolbar';
 import { SaveDialog, LoadDialog, RecoveryDialog } from './components/SaveLoadDialog';
 import { EmbedDialog } from './components/EmbedDialog';
+import { ShareDialog } from './components/ShareDialog';
 import { ThemeSelector } from './components/ThemeSelector';
 import { TemplateSelector } from './components/TemplateSelector';
 import { ResizeHandle, usePanelResize } from './components/ResizeHandle';
@@ -37,6 +38,7 @@ const App: React.FC = () => {
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
   const [showEmbedDialog, setShowEmbedDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<MermaidTheme>(themes[0]);
@@ -358,17 +360,10 @@ const App: React.FC = () => {
     setRefreshKey(prev => prev + 1);
   }, [currentTheme, history]);
 
-  // Share handler
-  const handleShare = useCallback(async () => {
-    const success = await copyShareUrl(code);
-    if (success) {
-      setShareNotification('URL copiada para a \u00e1rea de transfer\u00eancia!');
-      setTimeout(() => setShareNotification(null), 3000);
-    } else {
-      setShareNotification('Erro ao copiar URL');
-      setTimeout(() => setShareNotification(null), 3000);
-    }
-  }, [code]);
+  // Share handler - opens share dialog
+  const handleShare = useCallback(() => {
+    setShowShareDialog(true);
+  }, []);
 
   // Embed handler
   const handleEmbed = useCallback(() => {
@@ -700,6 +695,16 @@ const App: React.FC = () => {
         onClose={() => setShowEmbedDialog(false)}
         code={code}
         isDarkMode={isDarkMode}
+      />
+      <ShareDialog
+        isOpen={showShareDialog}
+        onClose={() => setShowShareDialog(false)}
+        code={code}
+        isDarkMode={isDarkMode}
+        onExportPng={exportHook.exportPng}
+        onExportSvg={exportHook.exportSvg}
+        onExportMarkdown={exportHook.exportMarkdown}
+        onCopySvg={exportHook.copySvg}
       />
 
       {/* Share notification toast */}
