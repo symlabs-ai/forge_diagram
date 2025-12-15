@@ -46,6 +46,9 @@ const App: React.FC = () => {
   // Minimap state
   const [showMinimap, setShowMinimap] = useState(true);
 
+  // Editor panel collapsed state
+  const [isEditorCollapsed, setIsEditorCollapsed] = useState(false);
+
   // Share notification state
   const [shareNotification, setShareNotification] = useState<string | null>(null);
 
@@ -347,6 +350,7 @@ const App: React.FC = () => {
     onZoomIn: useCallback(() => transformComponentRef.current?.zoomIn(), []),
     onZoomOut: useCallback(() => transformComponentRef.current?.zoomOut(), []),
     onResetZoom: useCallback(() => transformComponentRef.current?.resetTransform(), []),
+    onToggleEditor: useCallback(() => setIsEditorCollapsed(prev => !prev), []),
   });
 
   return (
@@ -401,18 +405,20 @@ const App: React.FC = () => {
         isMobile={isMobile}
       />
 
-      {/* Diagram Tabs Bar */}
+      {/* Diagram Tabs Bar - wrapper with fixed height to prevent shrinking */}
       {!isMobile && (
-        <TabBar
-          tabs={tabs.tabs}
-          activeTabId={tabs.activeTabId}
-          onSelectTab={tabs.selectTab}
-          onCloseTab={tabs.closeTab}
-          onAddTab={() => tabs.addTab()}
-          onRenameTab={tabs.renameTab}
-          canAddTab={tabs.canAddTab}
-          isDarkMode={isDarkMode}
-        />
+        <div className="h-7 flex-shrink-0 flex-grow-0">
+          <TabBar
+            tabs={tabs.tabs}
+            activeTabId={tabs.activeTabId}
+            onSelectTab={tabs.selectTab}
+            onCloseTab={tabs.closeTab}
+            onAddTab={() => tabs.addTab()}
+            onRenameTab={tabs.renameTab}
+            canAddTab={tabs.canAddTab}
+            isDarkMode={isDarkMode}
+          />
+        </div>
       )}
 
       {/* Mobile Tab Bar */}
@@ -425,10 +431,15 @@ const App: React.FC = () => {
       )}
 
       <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
-        {/* Editor Section - hidden on mobile when preview tab is active */}
+        {/* Editor Section - collapsible on desktop, tab-based on mobile */}
         <div
-          className={`${isMobile ? (mobileTab === 'editor' ? 'flex-1' : 'hidden') : ''} h-1/2 md:h-full p-4 no-print flex flex-col`}
-          style={!isMobile ? { width: `${editorWidth}px`, minWidth: '250px', maxWidth: '800px' } : undefined}
+          className={`
+            ${isMobile ? (mobileTab === 'editor' ? 'flex-1' : 'hidden') : ''}
+            h-1/2 md:h-full no-print flex flex-col flex-shrink-0
+            transition-[width,padding,opacity] duration-300 ease-in-out
+            ${!isMobile && isEditorCollapsed ? 'w-0 min-w-0 !p-0 overflow-hidden opacity-0' : 'p-4 opacity-100'}
+          `}
+          style={!isMobile && !isEditorCollapsed ? { width: `${editorWidth}px`, minWidth: '250px', maxWidth: '800px' } : undefined}
         >
           <CodeEditor
             code={code}
@@ -441,8 +452,32 @@ const App: React.FC = () => {
           />
         </div>
 
-        {/* Resize Handle - hidden on mobile */}
+        {/* Editor Toggle Button - desktop only */}
         {!isMobile && (
+          <button
+            onClick={() => setIsEditorCollapsed(!isEditorCollapsed)}
+            className={`
+              flex-shrink-0 w-6 h-full flex items-center justify-center
+              bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600
+              border-x border-gray-300 dark:border-slate-600
+              transition-colors duration-200 no-print
+              group
+            `}
+            title={isEditorCollapsed ? "Show Editor (Ctrl+E)" : "Hide Editor (Ctrl+E)"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`h-4 w-4 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-transform duration-300 ${isEditorCollapsed ? 'rotate-180' : ''}`}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
+
+        {/* Resize Handle - hidden on mobile and when editor collapsed */}
+        {!isMobile && !isEditorCollapsed && (
           <ResizeHandle
             onResize={handleResize}
             onResizeEnd={handleResizeEnd}

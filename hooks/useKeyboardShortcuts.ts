@@ -12,6 +12,7 @@ interface KeyboardShortcuts {
   onZoomIn?: () => void;
   onZoomOut?: () => void;
   onResetZoom?: () => void;
+  onToggleEditor?: () => void;
 }
 
 /**
@@ -23,6 +24,7 @@ interface KeyboardShortcuts {
  * - F11: Toggle Fullscreen
  * - Escape: Exit Fullscreen
  * - Ctrl+D: Toggle Dark Mode
+ * - Ctrl+E: Toggle Editor Panel
  * - Ctrl+N: Novo diagrama
  * - Ctrl+O: Abrir diagrama
  * - Ctrl+=: Zoom In
@@ -41,6 +43,7 @@ export function useKeyboardShortcuts({
   onZoomIn,
   onZoomOut,
   onResetZoom,
+  onToggleEditor,
 }: KeyboardShortcuts) {
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const isModKey = event.ctrlKey || event.metaKey;
@@ -128,6 +131,10 @@ export function useKeyboardShortcuts({
           event.preventDefault();
           onOpenDiagram?.();
           break;
+        case 'e':
+          event.preventDefault();
+          onToggleEditor?.();
+          break;
       }
     }
   }, [
@@ -142,6 +149,7 @@ export function useKeyboardShortcuts({
     onZoomIn,
     onZoomOut,
     onResetZoom,
+    onToggleEditor,
   ]);
 
   useEffect(() => {
