@@ -1,40 +1,38 @@
-```mermaid
-flowchart LR;
+flowchart LR
 
-subgraph Edicao["Edicao de diagrama ou markdown"];
-    U([User]) --> CE[CodeEditor];
-    CE --> KS[useKeyboardShortcuts];
-    CE --> HIST["useHistory (undo/redo de codigo)"];
-    CE --> TABS["useTabs (aba ativa)"];
-    TABS --> AUTOSAVE["storageUtils salva abas + autosave"];
-    HIST --> PREV["InnerMermaidRenderer (+ MarkdownPreview)"];
-    PREV --> MERMAID[Mermaid.js];
-    PREV --> PLANT["plantumlUtils (render remoto quando detecta)"];
-    MERMAID --> SVG[SVG gerado];
-    SVG --> VIZHIST["useVisualHistory (undo/redo de arrasto)"];
-    SVG --> MINIMAP[Minimap];
-    VIZHIST <--> HIST;
-end;
+subgraph Edicao["Edicao de diagrama ou markdown"]
+    U([User]) --> CE[CodeEditor]
+    CE --> KS[useKeyboardShortcuts]
+    CE --> HIST["useHistory (undo/redo de codigo)"]
+    CE --> TABS["useTabs (aba ativa)"]
+    TABS --> AUTOSAVE["storageUtils salva abas + autosave"]
+    HIST --> PREV["InnerMermaidRenderer (+ MarkdownPreview)"]
+    PREV --> MERMAID[Mermaid.js]
+    PREV --> PLANT["plantumlUtils (render remoto quando detecta)"]
+    MERMAID --> SVG[SVG gerado]
+    SVG --> VIZHIST["useVisualHistory (undo/redo de arrasto)"]
+    SVG --> MINIMAP[Minimap]
+    VIZHIST <--> HIST
+end
 
-subgraph Workspace["Workspace / arquivos"];
-    OPEN["Open Folder (File System Access)"] --> WS[useWorkspace];
-    UPLOAD["Upload de pasta (fallback)"] --> WS;
-    WS --> TREE[FileExplorer / SearchPanel];
-    TREE --> READ["readFileContent -> useTabs.addTab"];
-    WRITE[writeFileContent] <-- SAVEFILE["Salvar em disco"];
-    WS -. cache .- CACHE[(contentCache)];
-end;
+subgraph Workspace["Workspace / arquivos"]
+    OPEN["Open Folder (File System Access)"] --> WS[useWorkspace]
+    UPLOAD["Upload de pasta (fallback)"] --> WS
+    WS --> TREE[FileExplorer / SearchPanel]
+    TREE --> READ["readFileContent -> useTabs.addTab"]
+    SAVEFILE["Salvar em disco"] --> WRITE[writeFileContent]
+    WS -. cache .- CACHE[(contentCache)]
+end
 
-subgraph ExportShare["Exportar / compartilhar / embed"];
-    SVG --> PNG["exportUtils.svgToPng (download)"];
-    SVG --> RAWSVG[exportUtils.downloadBlob];
-    CE --> URL["shareUtils.encodeForUrl (hash gzip+base64)"];
-    CE --> EMBED["embedUtils (iframe/HTML/MD)"];
-    CE --> MD["exportMarkdown (share dialog)"];
-    URL --> CLIP[Clipboard];
-end;
+subgraph ExportShare["Exportar / compartilhar / embed"]
+    SVG --> PNG["exportUtils.svgToPng (download)"]
+    SVG --> RAWSVG[exportUtils.downloadBlob]
+    CE --> URL["shareUtils.encodeForUrl (hash gzip+base64)"]
+    CE --> EMBED["embedUtils (iframe/HTML/MD)"]
+    CE --> MD["exportMarkdown (share dialog)"]
+    URL --> CLIP[Clipboard]
+end
 
-AUTOSAVE --> RECOVER["Recuperacao apos crash"];
-TABS --> THEME["mermaidThemes / markdownThemes aplicam estilo no codigo"];
-TEMPLATE[diagramTemplates] --> TABS;
-```
+AUTOSAVE --> RECOVER["Recuperacao apos crash"]
+TABS --> THEME["mermaidThemes / markdownThemes aplicam estilo no codigo"]
+TEMPLATE[diagramTemplates] --> TABS

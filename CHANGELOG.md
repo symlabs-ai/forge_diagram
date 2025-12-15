@@ -5,6 +5,15 @@ Todas as mudancas notaveis neste projeto serao documentadas neste arquivo.
 O formato e baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Versionamento Semantico](https://semver.org/lang/pt-BR/).
 
+## [0.3.1] - 2025-12-15
+
+### Adicionado
+- **Tabelas Markdown** - Suporte a renderizacao de tabelas com alinhamento e estilos zebrados
+- **Documentacao de Arquitetura** - Diagramas HLD, LLD, componentes e classes em `/docs`
+
+### Corrigido
+- **Code Fences em .mmd** - Arquivos .mmd com ` ```mermaid ` sao processados corretamente
+
 ## [0.3.0] - 2025-12-15
 
 ### Adicionado
