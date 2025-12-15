@@ -64,21 +64,62 @@ interface LoadDialogProps {
   onClose: () => void;
   onLoad: (id: string) => void;
   onDelete: (id: string) => void;
+  onOpenFile: (content: string) => void;
   diagrams: SavedDiagram[];
   isDarkMode: boolean;
 }
 
-export function LoadDialog({ isOpen, onClose, onLoad, onDelete, diagrams, isDarkMode }: LoadDialogProps) {
+export function LoadDialog({ isOpen, onClose, onLoad, onDelete, onOpenFile, diagrams, isDarkMode }: LoadDialogProps) {
   if (!isOpen) return null;
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        onOpenFile(content);
+        onClose();
+      };
+      reader.readAsText(file);
+    }
+    // Reset input para permitir selecionar o mesmo arquivo novamente
+    event.target.value = '';
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className={`${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-lg p-6 w-[500px] max-h-[80vh] shadow-xl flex flex-col`}>
         <h2 className="text-lg font-semibold mb-4">Load Diagram</h2>
+
+        {/* Open from file button */}
+        <div className="mb-4">
+          <input
+            type="file"
+            accept=".mermaid,.mmd,.txt,.puml,.plantuml,.xml"
+            onChange={handleFileUpload}
+            className="hidden"
+            id="load-file-input"
+          />
+          <label
+            htmlFor="load-file-input"
+            className={`flex items-center justify-center gap-2 w-full py-3 rounded cursor-pointer border-2 border-dashed ${isDarkMode ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'} transition-colors`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+            <span>Open from file (Mermaid, PlantUML, draw.io)</span>
+          </label>
+        </div>
+
+        {/* Saved diagrams section */}
+        <div className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          Saved Diagrams
+        </div>
 
         {diagrams.length === 0 ? (
           <p className={`text-center py-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -120,7 +161,7 @@ export function LoadDialog({ isOpen, onClose, onLoad, onDelete, diagrams, isDark
           </div>
         )}
 
-        <div className="flex justify-end mt-4 pt-4 border-t border-gray-600">
+        <div className={`flex justify-end mt-4 pt-4 border-t ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
           <button
             onClick={onClose}
             className={`px-4 py-2 rounded ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}

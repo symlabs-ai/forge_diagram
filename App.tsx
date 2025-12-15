@@ -3,7 +3,6 @@ import { CodeEditor } from './components/CodeEditor';
 import { Toolbar } from './components/Toolbar';
 import { SaveDialog, LoadDialog, RecoveryDialog } from './components/SaveLoadDialog';
 import { EmbedDialog } from './components/EmbedDialog';
-import { ImportDialog } from './components/ImportDialog';
 import { ThemeSelector } from './components/ThemeSelector';
 import { TemplateSelector } from './components/TemplateSelector';
 import { ResizeHandle, usePanelResize } from './components/ResizeHandle';
@@ -37,7 +36,6 @@ const App: React.FC = () => {
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
   const [showEmbedDialog, setShowEmbedDialog] = useState(false);
-  const [showImportDialog, setShowImportDialog] = useState(false);
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<MermaidTheme>(themes[0]);
@@ -83,7 +81,7 @@ const App: React.FC = () => {
       const urlCode = getCodeFromUrl();
       if (urlCode && urlCode !== tabs.activeTab.code) {
         // Create a new tab with the shared diagram
-        tabs.addTab(urlCode, 'Shared');
+        tabs.addTab(urlCode);
         setRefreshKey(prev => prev + 1);
       }
     };
@@ -267,16 +265,6 @@ const App: React.FC = () => {
     setShowEmbedDialog(true);
   }, []);
 
-  // Import handler
-  const handleImportClick = useCallback(() => {
-    setShowImportDialog(true);
-  }, []);
-
-  const handleImportDiagram = useCallback((importedCode: string) => {
-    handleCodeChange(importedCode);
-    setRefreshKey(prev => prev + 1);
-  }, [handleCodeChange]);
-
   // Fullscreen handlers
   const handleToggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement && previewContainerRef.current) {
@@ -367,7 +355,6 @@ const App: React.FC = () => {
       <Toolbar
         isDarkMode={isDarkMode}
         toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-        onUpload={handleCodeChange}
         onPrint={handlePrint}
         onRefresh={handleRefresh}
         orientation={orientation}
@@ -383,8 +370,6 @@ const App: React.FC = () => {
         // Share
         onShare={handleShare}
         onEmbed={handleEmbed}
-        // Import
-        onImport={handleImportClick}
         // Persistence
         onSave={handleSave}
         onLoad={handleLoad}
@@ -545,6 +530,7 @@ const App: React.FC = () => {
         onClose={() => setShowLoadDialog(false)}
         onLoad={storage.load}
         onDelete={storage.remove}
+        onOpenFile={handleCodeChange}
         diagrams={storage.diagrams}
         isDarkMode={isDarkMode}
       />
@@ -558,12 +544,6 @@ const App: React.FC = () => {
         isOpen={showEmbedDialog}
         onClose={() => setShowEmbedDialog(false)}
         code={code}
-        isDarkMode={isDarkMode}
-      />
-      <ImportDialog
-        isOpen={showImportDialog}
-        onClose={() => setShowImportDialog(false)}
-        onImport={handleImportDiagram}
         isDarkMode={isDarkMode}
       />
 

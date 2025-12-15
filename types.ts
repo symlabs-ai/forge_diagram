@@ -25,7 +25,6 @@ export interface PreviewProps {
 export interface ToolbarProps {
   isDarkMode: boolean;
   toggleDarkMode: () => void;
-  onUpload: (content: string) => void;
   onPrint: () => void;
   onRefresh?: () => void;
   orientation: Orientation;
@@ -41,8 +40,6 @@ export interface ToolbarProps {
   // Share
   onShare: () => void;
   onEmbed: () => void;
-  // Import
-  onImport: () => void;
   // Persistence
   onSave: () => void;
   onLoad: () => void;

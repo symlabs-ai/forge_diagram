@@ -4,7 +4,6 @@ import { ToolbarProps } from '../types';
 export const Toolbar: React.FC<ToolbarProps> = ({
   isDarkMode,
   toggleDarkMode,
-  onUpload,
   onPrint,
   orientation,
   toggleOrientation,
@@ -19,8 +18,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   // Share
   onShare,
   onEmbed,
-  // Import
-  onImport,
   // Persistence
   onSave,
   onLoad,
@@ -42,18 +39,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   // Mobile
   isMobile,
 }) => {
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        onUpload(content);
-      };
-      reader.readAsText(file);
-    }
-  };
-
   const buttonClass = "p-2 rounded hover:bg-gray-300 dark:hover:bg-slate-600";
   const disabledClass = "p-2 rounded opacity-40 cursor-not-allowed";
 
@@ -155,43 +140,21 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className={buttonClass}
           title="Save Diagram (Ctrl+S)"
         >
+          {/* Floppy disk icon */}
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V7zm3 2a1 1 0 000 2h6a1 1 0 100-2H7z" />
+            <path d="M3 5a2 2 0 012-2h8.586a1 1 0 01.707.293l2.414 2.414a1 1 0 01.293.707V15a2 2 0 01-2 2H5a2 2 0 01-2-2V5z" />
+            <path fill={isDarkMode ? '#1e293b' : '#fff'} d="M6 4h5v3a1 1 0 001 1h2v8H6V4z" />
+            <path fill="currentColor" d="M7 12h6v4H7v-4z" />
           </svg>
         </button>
         <button
           onClick={onLoad}
           className={buttonClass}
-          title="Load Diagram"
+          title="Open Diagram"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v1.5a1.5 1.5 0 01-3 0V6z" clipRule="evenodd" />
             <path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H2h2a2 2 0 002-2v-2z" />
-          </svg>
-        </button>
-        <input
-          type="file"
-          accept=".mermaid,.mmd,.txt"
-          onChange={handleFileUpload}
-          className="hidden"
-          id="upload-file"
-        />
-        <label
-          htmlFor="upload-file"
-          className={`${buttonClass} cursor-pointer flex items-center`}
-          title="Upload Mermaid File"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-          </svg>
-        </label>
-        <button
-          onClick={onImport}
-          className={buttonClass}
-          title="Import (PlantUML, draw.io)"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
         </button>
 
