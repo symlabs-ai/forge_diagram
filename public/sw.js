@@ -3,13 +3,16 @@
  * Provides offline functionality with cache-first strategy
  */
 
-const CACHE_NAME = 'forge-diagram-v3';
+const CACHE_NAME = 'forge-diagram-v4';
+
+// Base path - update if deploying to subdirectory
+const BASE_PATH = '/forgediagram';
 
 // Assets to cache on install
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/index.css',
+  `${BASE_PATH}/`,
+  `${BASE_PATH}/index.html`,
+  `${BASE_PATH}/index.css`,
 ];
 
 // External resources to cache

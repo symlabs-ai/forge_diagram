@@ -2,14 +2,15 @@
   "name": "forge Diagram - Mermaid Diagram Editor",
   "short_name": "forge Diagram",
   "description": "Professional Mermaid diagram editor with live preview",
-  "start_url": "/",
+  "start_url": "/forgediagram/",
+  "scope": "/forgediagram/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#6366f1",
   "orientation": "any",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/forgediagram/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
