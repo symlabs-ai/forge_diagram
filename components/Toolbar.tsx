@@ -144,9 +144,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       {/* Left section: Logo + File operations */}
       <div className="flex items-center space-x-1">
         {/* Logo/Brand */}
-        <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg mr-3">
-          forge Diagram
-        </span>
+        <div className="flex flex-col items-start mr-3">
+          <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg leading-tight">
+            forge Diagram
+          </span>
+          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 leading-none">
+            v0.3.2
+          </span>
+        </div>
 
         <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mr-1" />
 

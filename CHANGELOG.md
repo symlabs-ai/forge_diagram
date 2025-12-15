@@ -5,6 +5,12 @@ Todas as mudancas notaveis neste projeto serao documentadas neste arquivo.
 O formato e baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Versionamento Semantico](https://semver.org/lang/pt-BR/).
 
+## [0.3.2] - 2025-12-15
+
+### Adicionado
+- **Label de Versao** - Exibe versao atual abaixo do logo na toolbar
+- **Scripts de Deploy** - `restart.sh` e `update_restart.sh` para facilitar deploy
+
 ## [0.3.1] - 2025-12-15
 
 ### Adicionado
