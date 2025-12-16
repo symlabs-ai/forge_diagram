@@ -1081,7 +1081,7 @@ const App: React.FC = () => {
         {/* Preview Section - hidden on mobile when editor tab is active */}
         <div
           ref={previewContainerRef}
-          className={`${isMobile ? (mobileTab === 'preview' ? 'flex-1' : 'hidden') : 'flex-1'} h-1/2 md:h-full p-4 bg-gray-100 dark:bg-slate-900 relative`}
+          className={`${isMobile ? (mobileTab === 'preview' ? 'flex-1' : 'hidden') : 'flex-1'} h-1/2 md:h-full p-4 bg-gray-100 dark:bg-slate-900 relative min-w-0 overflow-hidden`}
         >
 
           <div className="h-full w-full shadow-xl rounded-lg bg-white dark:bg-slate-800 overflow-hidden flex flex-col relative">

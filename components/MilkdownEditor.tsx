@@ -73,10 +73,22 @@ const getMilkdownStyles = (isDarkMode: boolean, theme?: MarkdownTheme) => {
   const hrColor = s?.hrColor ?? (isDarkMode ? '#374151' : '#e5e7eb');
 
   return `
+  /* Milkdown internal wrapper - ensure it takes full height and width */
+  div:has(> .milkdown) {
+    height: 100%;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
   .milkdown {
     height: 100%;
+    width: 100%;
+    max-width: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 1.5rem;
+    box-sizing: border-box;
     font-family: ${fontFamily};
     font-size: ${fontSize};
     line-height: ${lineHeight};
@@ -263,6 +275,32 @@ const getMilkdownStyles = (isDarkMode: boolean, theme?: MarkdownTheme) => {
     outline: none;
   }
 
+  /* Scrollbar styling - more visible colors */
+  .milkdown::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .milkdown::-webkit-scrollbar-track {
+    background: ${isDarkMode ? '#334155' : '#e2e8f0'};
+    border-radius: 5px;
+  }
+
+  .milkdown::-webkit-scrollbar-thumb {
+    background: ${isDarkMode ? '#64748b' : '#94a3b8'};
+    border-radius: 5px;
+    border: 2px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
+  }
+
+  .milkdown::-webkit-scrollbar-thumb:hover {
+    background: ${isDarkMode ? '#94a3b8' : '#64748b'};
+  }
+
+  /* Firefox scrollbar */
+  .milkdown {
+    scrollbar-width: auto;
+    scrollbar-color: ${isDarkMode ? '#64748b #334155' : '#94a3b8 #e2e8f0'};
+  }
+
   /* Placeholder */
   .milkdown .ProseMirror p.is-editor-empty:first-child::before {
     content: 'Start writing...';
@@ -272,6 +310,70 @@ const getMilkdownStyles = (isDarkMode: boolean, theme?: MarkdownTheme) => {
     height: 0;
   }
 `;
+};
+
+// Custom scrollbar component for systems with overlay scrollbars
+const CustomScrollbar: React.FC<{
+  container: HTMLElement | null;
+  isDarkMode: boolean;
+}> = ({ container, isDarkMode }) => {
+  const [thumbHeight, setThumbHeight] = useState(0);
+  const [thumbTop, setThumbTop] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (!container) return;
+
+    const updateScrollbar = () => {
+      const { scrollHeight, clientHeight, scrollTop } = container;
+      const hasScroll = scrollHeight > clientHeight;
+      setIsVisible(hasScroll);
+
+      if (hasScroll) {
+        const ratio = clientHeight / scrollHeight;
+        const height = Math.max(ratio * clientHeight, 40);
+        setThumbHeight(height);
+
+        const maxScroll = scrollHeight - clientHeight;
+        const scrollPercent = scrollTop / maxScroll;
+        const maxTop = clientHeight - height;
+        setThumbTop(scrollPercent * maxTop);
+      }
+    };
+
+    updateScrollbar();
+    container.addEventListener('scroll', updateScrollbar);
+
+    // Also update on resize
+    const resizeObserver = new ResizeObserver(updateScrollbar);
+    resizeObserver.observe(container);
+
+    return () => {
+      container.removeEventListener('scroll', updateScrollbar);
+      resizeObserver.disconnect();
+    };
+  }, [container]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div
+      className="absolute right-1 top-1 bottom-1 w-2 rounded-full pointer-events-none"
+      style={{
+        background: isDarkMode ? 'rgba(51, 65, 85, 0.6)' : 'rgba(203, 213, 225, 0.8)',
+        zIndex: 9999
+      }}
+    >
+      <div
+        className="absolute w-full rounded-full"
+        style={{
+          height: thumbHeight,
+          top: thumbTop,
+          background: isDarkMode ? 'rgba(148, 163, 184, 0.9)' : 'rgba(100, 116, 139, 0.8)',
+        }}
+      />
+    </div>
+  );
 };
 
 // Internal editor component
@@ -289,6 +391,7 @@ const MilkdownEditorInner: React.FC<MilkdownEditorProps & { editorKey: number }>
   const isInternalChangeRef = useRef(false);
   const isSyncingRef = useRef(true); // Start true to skip initial load; set true during external sync
   const editorRef = useRef<Editor | null>(null);
+  const [milkdownContainer, setMilkdownContainer] = useState<HTMLDivElement | null>(null);
 
   // Use refs for callbacks to avoid recreating the editor/plugin on every render
   const onChangeRef = useRef(onChange);
@@ -369,11 +472,24 @@ const MilkdownEditorInner: React.FC<MilkdownEditorProps & { editorKey: number }>
     }
   }, [content]);
 
+  // Get reference to the .milkdown element after render
+  useEffect(() => {
+    // Small delay to ensure Milkdown has rendered
+    const timeout = setTimeout(() => {
+      const milkdownEl = document.querySelector('.milkdown') as HTMLDivElement;
+      if (milkdownEl && milkdownContainer !== milkdownEl) {
+        setMilkdownContainer(milkdownEl);
+      }
+    }, 100);
+    return () => clearTimeout(timeout);
+  }, [loading, editorKey, milkdownContainer]);
+
   return (
     <>
       <style>{getMilkdownStyles(isDarkMode, theme)}</style>
-      <div spellCheck={spellcheck} className="h-full">
+      <div spellCheck={spellcheck} className="h-full relative">
         <Milkdown />
+        <CustomScrollbar container={milkdownContainer} isDarkMode={isDarkMode} />
       </div>
     </>
   );
