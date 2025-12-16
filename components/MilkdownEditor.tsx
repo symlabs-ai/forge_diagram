@@ -372,7 +372,7 @@ const MilkdownEditorInner: React.FC<MilkdownEditorProps & { editorKey: number }>
   return (
     <>
       <style>{getMilkdownStyles(isDarkMode, theme)}</style>
-      <div spellCheck={spellcheck}>
+      <div spellCheck={spellcheck} className="h-full">
         <Milkdown />
       </div>
     </>

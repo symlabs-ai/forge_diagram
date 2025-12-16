@@ -553,7 +553,7 @@ Write your content here...
             Nenhum arquivo suportado encontrado
             <br />
             <span className="text-xs">
-              (.mmd, .mermaid, .md, .puml, .plantuml)
+              (.mmd, .mermaid, .md, .feature, .puml, .plantuml)
             </span>
           </div>
         ) : (

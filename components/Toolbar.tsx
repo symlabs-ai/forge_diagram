@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ToolbarProps } from '../types';
 
+declare const __APP_VERSION__: string;
+
 export const Toolbar: React.FC<ToolbarProps> = ({
   mode,
+  hasActiveTab = true,
   isDarkMode,
   toggleDarkMode,
   onPrint,
@@ -52,13 +55,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   }, []);
 
   const isDiagramMode = mode === 'diagram';
+  const showModeControls = hasActiveTab;
 
   // Mobile toolbar - simplified with only essential buttons
   if (isMobile) {
     return (
       <div className="flex items-center justify-between p-2 bg-gray-200 dark:bg-slate-700 shadow-md no-print">
-        {/* Theme selector based on mode */}
-        {isDiagramMode ? templateSelector : markdownThemeSelector}
+        {/* Theme selector based on mode - only show when there's an active tab */}
+        {showModeControls && (isDiagramMode ? templateSelector : markdownThemeSelector)}
 
         {/* Dark mode */}
         <button
@@ -77,8 +81,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           )}
         </button>
 
-        {/* Diagram-specific controls */}
-        {isDiagramMode && toggleOrientation && (
+        {/* Diagram-specific controls - only show when there's an active tab */}
+        {showModeControls && isDiagramMode && toggleOrientation && (
           <button
             onClick={toggleOrientation}
             className={buttonClass}
@@ -96,22 +100,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         )}
 
-        {/* Zoom controls - diagram only */}
-        {isDiagramMode && zoomIn && (
+        {/* Zoom controls - diagram only, show when there's an active tab */}
+        {showModeControls && isDiagramMode && zoomIn && (
           <button onClick={zoomIn} className={buttonClass} title="Zoom In">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
             </svg>
           </button>
         )}
-        {isDiagramMode && zoomOut && (
+        {showModeControls && isDiagramMode && zoomOut && (
           <button onClick={zoomOut} className={buttonClass} title="Zoom Out">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
             </svg>
           </button>
         )}
-        {isDiagramMode && onRedraw && (
+        {showModeControls && isDiagramMode && onRedraw && (
           <button onClick={onRedraw} className={buttonClass} title="Redraw">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
@@ -119,8 +123,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         )}
 
-        {/* Share - diagram only */}
-        {isDiagramMode && onShare && (
+        {/* Share - diagram only, show when there's an active tab */}
+        {showModeControls && isDiagramMode && onShare && (
           <button onClick={onShare} className={buttonClass} title="Compartilhar & Exportar">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
@@ -128,12 +132,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         )}
 
-        {/* Print - available for both modes */}
-        <button onClick={onPrint} className={buttonClass} title="Print / Export PDF">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
-          </svg>
-        </button>
+        {/* Print - show when there's an active tab */}
+        {showModeControls && (
+          <button onClick={onPrint} className={buttonClass} title="Print / Export PDF">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
       </div>
     );
   }
@@ -149,7 +155,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             forge Diagram
           </span>
           <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 leading-none">
-            v0.3.2
+            v{__APP_VERSION__}
           </span>
         </div>
 
@@ -225,19 +231,21 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Center section: View controls */}
       <div className="flex items-center space-x-1">
-        {/* Theme & Template selectors based on mode */}
-        {isDiagramMode ? (
-          <>
-            {themeSelector}
-            {templateSelector}
-          </>
-        ) : (
-          <>
-            {markdownThemeSelector}
-          </>
+        {/* Theme & Template selectors based on mode - only show when there's an active tab */}
+        {showModeControls && (
+          isDiagramMode ? (
+            <>
+              {themeSelector}
+              {templateSelector}
+            </>
+          ) : (
+            <>
+              {markdownThemeSelector}
+            </>
+          )
         )}
 
-        <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />
+        {showModeControls && <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />}
 
         <button
           onClick={toggleDarkMode}
@@ -255,8 +263,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           )}
         </button>
 
-        {/* Diagram-specific controls */}
-        {isDiagramMode && toggleOrientation && (
+        {/* Diagram-specific controls - only show when there's an active tab */}
+        {showModeControls && isDiagramMode && toggleOrientation && (
           <>
             <button
               onClick={toggleOrientation}
@@ -333,8 +341,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         )}
 
-        {/* Minimap toggle - diagram only */}
-        {isDiagramMode && onToggleMinimap && (
+        {/* Minimap toggle - diagram only, show when there's an active tab */}
+        {showModeControls && isDiagramMode && onToggleMinimap && (
           <button
             onClick={onToggleMinimap}
             className={`${buttonClass} ${showMinimap ? 'text-blue-500' : ''}`}
@@ -347,10 +355,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         )}
       </div>
 
-      {/* Right section: Share & Export */}
+      {/* Right section: Share & Export - only show when there's an active tab */}
       <div className="flex items-center space-x-1">
         {/* Share & Embed - diagram only */}
-        {isDiagramMode && onShare && (
+        {showModeControls && isDiagramMode && onShare && (
           <button
             onClick={onShare}
             className={buttonClass}
@@ -361,7 +369,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </svg>
           </button>
         )}
-        {isDiagramMode && onEmbed && (
+        {showModeControls && isDiagramMode && onEmbed && (
           <button
             onClick={onEmbed}
             className={buttonClass}
@@ -373,20 +381,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </button>
         )}
 
-        {isDiagramMode && (onShare || onEmbed) && (
+        {showModeControls && isDiagramMode && (onShare || onEmbed) && (
           <div className="w-px h-6 bg-gray-400 dark:bg-slate-500 mx-1" />
         )}
 
-        {/* Print - available for both modes */}
-        <button
-          onClick={onPrint}
-          className={buttonClass}
-          title="Print / Export PDF"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
-          </svg>
-        </button>
+        {/* Print - show when there's an active tab */}
+        {showModeControls && (
+          <button
+            onClick={onPrint}
+            className={buttonClass}
+            title="Print / Export PDF"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );

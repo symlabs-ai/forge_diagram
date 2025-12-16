@@ -36,6 +36,8 @@ export type ToolbarMode = 'diagram' | 'markdown';
 export interface ToolbarProps {
   // Mode determines which controls are shown
   mode: ToolbarMode;
+  // Whether there's an active tab (hides mode-specific controls when false)
+  hasActiveTab?: boolean;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   onPrint: () => void;
@@ -160,4 +162,4 @@ export interface SearchResult {
 }
 
 // Supported file extensions for workspace
-export const SUPPORTED_EXTENSIONS = ['.mmd', '.mermaid', '.md', '.puml', '.plantuml'];
+export const SUPPORTED_EXTENSIONS = ['.mmd', '.mermaid', '.md', '.feature', '.puml', '.plantuml'];

@@ -103,7 +103,7 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({
                 Abrir Arquivo
               </div>
               <div className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                .mmd, .md, .puml
+                .mmd, .md, .feature, .puml
               </div>
             </button>
           </div>

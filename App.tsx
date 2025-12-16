@@ -185,7 +185,7 @@ const App: React.FC = () => {
       const content = await workspace.readFile(file);
 
       // Detect file type based on extension
-      const isMarkdown = /\.md$/i.test(file.name);
+      const isMarkdown = /\.(md|feature)$/i.test(file.name);
       const tabType = isMarkdown ? 'markdown' : 'diagram';
 
       // Open file in a new tab or update current tab
@@ -700,12 +700,12 @@ const App: React.FC = () => {
     // Create a hidden file input and trigger it
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.mmd,.mermaid,.md,.puml';
+    input.accept = '.mmd,.mermaid,.md,.feature,.puml';
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
         const content = await file.text();
-        const isMarkdown = /\.md$/i.test(file.name);
+        const isMarkdown = /\.(md|feature)$/i.test(file.name);
         tabs.addTab({
           code: content,
           type: isMarkdown ? 'markdown' : 'diagram',
@@ -816,6 +816,7 @@ const App: React.FC = () => {
       
       <Toolbar
         mode={tabs.activeTab?.type === 'markdown' ? 'markdown' : 'diagram'}
+        hasActiveTab={!!tabs.activeTab}
         isDarkMode={isDarkMode}
         toggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         onPrint={handlePrint}
