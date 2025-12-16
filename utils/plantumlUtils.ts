@@ -3,6 +3,8 @@
  * Uses the official PlantUML server: https://www.plantuml.com/plantuml
  */
 
+import pako from 'pako';
+
 /**
  * PlantUML uses a custom encoding (similar to base64 but different alphabet)
  * Based on: https://plantuml.com/text-encoding
@@ -29,30 +31,22 @@ function append3bytes(b1: number, b2: number, b3: number): string {
 
 /**
  * Encode PlantUML text to the format expected by the server
+ * Uses deflate compression + PlantUML's custom base64 encoding
  */
 export function encodePlantUML(text: string): string {
-  // First, deflate the text using pako
-  const pako = (window as any).pako;
-  if (!pako) {
-    console.error('pako not available for PlantUML encoding');
-    return '';
-  }
-
   try {
-    const data = pako.deflate(text, { level: 9, to: 'string' });
-    const bytes = new Uint8Array(data.length);
-    for (let i = 0; i < data.length; i++) {
-      bytes[i] = data.charCodeAt(i);
-    }
+    // Deflate the text using pako (raw deflate, not gzip)
+    const deflated = pako.deflateRaw(text, { level: 9 });
 
+    // Convert to PlantUML's custom base64 encoding
     let result = '';
-    for (let i = 0; i < bytes.length; i += 3) {
-      if (i + 2 === bytes.length) {
-        result += append3bytes(bytes[i], bytes[i + 1], 0);
-      } else if (i + 1 === bytes.length) {
-        result += append3bytes(bytes[i], 0, 0);
+    for (let i = 0; i < deflated.length; i += 3) {
+      if (i + 2 === deflated.length) {
+        result += append3bytes(deflated[i], deflated[i + 1], 0);
+      } else if (i + 1 === deflated.length) {
+        result += append3bytes(deflated[i], 0, 0);
       } else {
-        result += append3bytes(bytes[i], bytes[i + 1], bytes[i + 2]);
+        result += append3bytes(deflated[i], deflated[i + 1], deflated[i + 2]);
       }
     }
     return result;
@@ -73,9 +67,10 @@ export function encodePlantUMLHex(text: string): string {
 
 /**
  * Generate PlantUML server URL for SVG output
+ * Uses deflate compression for shorter URLs that work with large diagrams
  */
 export function getPlantUMLServerUrl(code: string, format: 'svg' | 'png' = 'svg'): string {
-  const encoded = encodePlantUMLHex(code);
+  const encoded = encodePlantUML(code);
   return `https://www.plantuml.com/plantuml/${format}/${encoded}`;
 }
 

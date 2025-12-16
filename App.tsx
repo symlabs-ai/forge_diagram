@@ -17,6 +17,7 @@ import { Sidebar } from './components/Sidebar';
 import { FileExplorer } from './components/FileExplorer';
 import { SearchPanel } from './components/SearchPanel';
 import { MarkdownPreview } from './components/MarkdownPreview';
+import { WelcomePage } from './components/WelcomePage';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { useTabs } from './hooks/useTabs';
 import { useActivityBar } from './hooks/useActivityBar';
@@ -100,11 +101,14 @@ const App: React.FC = () => {
 
   // Handle file selection from explorer
   const handleFileSelect = useCallback(async (file: FileNode) => {
+    // Always update selected path (for folder selection when creating files)
+    setSelectedFilePath(file.path);
+
+    // For folders, just select - don't try to open
     if (file.type !== 'file') return;
 
     try {
       const content = await workspace.readFile(file);
-      setSelectedFilePath(file.path);
 
       // Detect file type based on extension
       const isMarkdown = /\.md$/i.test(file.name);
@@ -133,11 +137,33 @@ const App: React.FC = () => {
     // TODO: scroll to line in editor
   }, [handleFileSelect]);
 
+  // Handle file deletion - close related tabs first
+  const handleDeleteFile = useCallback(async (file: FileNode): Promise<boolean> => {
+    // Find and close any tabs associated with this file
+    const tabsToClose = tabs.tabs.filter(tab => {
+      // Direct file match
+      if (tab.filePath === file.path) return true;
+      // For folders, close tabs of files inside the folder
+      if (file.type === 'folder' && tab.filePath?.startsWith(file.path + '/')) return true;
+      // Linked diagrams from this file
+      if (tab.linkedSource?.filePath === file.path) return true;
+      // Linked diagrams from files inside deleted folder
+      if (file.type === 'folder' && tab.linkedSource?.filePath?.startsWith(file.path + '/')) return true;
+      return false;
+    });
+
+    // Close all related tabs
+    tabsToClose.forEach(tab => tabs.closeTab(tab.id));
+
+    // Now delete the file
+    return workspace.deleteFile(file);
+  }, [tabs, workspace]);
+
   // Listen for URL hash changes (for PWA shared links)
   useEffect(() => {
     const handleHashChange = () => {
       const urlCode = getCodeFromUrl();
-      if (urlCode && urlCode !== tabs.activeTab.code) {
+      if (urlCode && urlCode !== tabs.activeTab?.code) {
         // Create a new tab with the shared diagram
         tabs.addTab(urlCode);
         setRefreshKey(prev => prev + 1);
@@ -168,7 +194,7 @@ const App: React.FC = () => {
   }, [tabs]);
 
   // History hook for undo/redo (per active tab)
-  const history = useHistory(tabs.activeTab.code || '');
+  const history = useHistory(tabs.activeTab?.code || '');
   const code = history.value || '';
 
   // Visual history for node positions (drag operations)
@@ -186,7 +212,7 @@ const App: React.FC = () => {
   // Sync history with active tab when tab changes
   useEffect(() => {
     // Ensure code is always a valid string
-    const tabCode = tabs.activeTab.code || '';
+    const tabCode = tabs.activeTab?.code || '';
     history.clear(tabCode);
     visualHistory.clear();
     // eslint-disable-next-line react-hooks-deps
@@ -369,7 +395,56 @@ const App: React.FC = () => {
   };
 
   // Save/Load handlers
-  const handleSave = useCallback(() => setShowSaveDialog(true), []);
+  const handleSave = useCallback(async () => {
+    const activeTab = tabs.activeTab;
+    if (!activeTab) return;
+
+    // If this is a linked diagram tab, sync back to the markdown file
+    if (activeTab.linkedSource) {
+      const { filePath, diagramIndex } = activeTab.linkedSource;
+      try {
+        const success = await workspace.updateDiagramInMarkdown(filePath, diagramIndex, activeTab.code);
+        if (success) {
+          tabs.markTabClean(activeTab.id);
+          console.log(`[Save] Synced diagram #${diagramIndex + 1} to ${filePath}`);
+
+          // Also update the markdown tab if it's open
+          const markdownTab = tabs.tabs.find(t => t.filePath === filePath && t.type === 'markdown');
+          if (markdownTab) {
+            // Re-read the file to get updated content
+            const fileNode = workspace.getFileByPath(filePath);
+            if (fileNode) {
+              const newContent = await workspace.readFile(fileNode);
+              tabs.updateTabCode(markdownTab.id, newContent, false);
+            }
+          }
+          return;
+        }
+      } catch (e) {
+        console.error('[Save] Error syncing diagram to markdown:', e);
+      }
+    }
+
+    // If file is from workspace, save to disk
+    if (activeTab.filePath && workspace.workspace) {
+      const fileNode = workspace.getFileByPath(activeTab.filePath);
+      if (fileNode) {
+        try {
+          await workspace.writeFile(fileNode, activeTab.code);
+          // Mark tab as not dirty after save
+          tabs.markTabClean(activeTab.id);
+          console.log(`[Save] File saved: ${activeTab.filePath}`);
+          return;
+        } catch (e) {
+          console.error('[Save] Error saving file:', e);
+          // Fall through to show save dialog
+        }
+      }
+    }
+
+    // Otherwise show save dialog for localStorage save
+    setShowSaveDialog(true);
+  }, [tabs, workspace]);
   const handleLoad = useCallback(() => {
     storage.refresh();
     setShowLoadDialog(true);
@@ -423,6 +498,47 @@ const App: React.FC = () => {
   const handleEmbed = useCallback(() => {
     setShowEmbedDialog(true);
   }, []);
+
+  // New diagram handler (for WelcomePage)
+  const handleNewDiagram = useCallback(() => {
+    tabs.addTab({ type: 'diagram' });
+  }, [tabs]);
+
+  // New markdown handler (for WelcomePage)
+  const handleNewMarkdown = useCallback(() => {
+    tabs.addTab({ type: 'markdown' });
+  }, [tabs]);
+
+  // Handle double-click on diagram in markdown preview - opens in linked tab for editing
+  const handleEditDiagramFromMarkdown = useCallback((diagram: { type: 'mermaid' | 'plantuml'; code: string; index: number }, filePath: string) => {
+    tabs.addLinkedTab(diagram.code, {
+      filePath,
+      diagramIndex: diagram.index,
+      diagramType: diagram.type,
+      originalCode: diagram.code,
+    });
+  }, [tabs]);
+
+  // Open file handler (for WelcomePage)
+  const handleOpenFile = useCallback(() => {
+    // Create a hidden file input and trigger it
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.mmd,.mermaid,.md,.puml';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const content = await file.text();
+        const isMarkdown = /\.md$/i.test(file.name);
+        tabs.addTab({
+          code: content,
+          type: isMarkdown ? 'markdown' : 'diagram',
+          name: file.name,
+        });
+      }
+    };
+    input.click();
+  }, [tabs]);
 
   // Fullscreen handlers
   const handleToggleFullscreen = useCallback(() => {
@@ -583,9 +699,7 @@ const App: React.FC = () => {
             activeTabId={tabs.activeTabId}
             onSelectTab={tabs.selectTab}
             onCloseTab={tabs.closeTab}
-            onAddTab={(type) => tabs.addTab({ type })}
             onRenameTab={tabs.renameTab}
-            canAddTab={tabs.canAddTab}
             isDarkMode={isDarkMode}
           />
         </div>
@@ -637,6 +751,9 @@ const App: React.FC = () => {
                 onOpenFolderFallback={workspace.openFolderFallback}
                 onCloseWorkspace={workspace.closeWorkspace}
                 onRefresh={workspace.refreshFiles}
+                onCreateFile={workspace.createFile}
+                onRenameFile={workspace.renameFile}
+                onDeleteFile={handleDeleteFile}
                 hasStoredWorkspace={workspace.hasStoredWorkspace}
                 onReopenLastWorkspace={workspace.reopenLastWorkspace}
               />
@@ -701,6 +818,17 @@ const App: React.FC = () => {
 
         {/* Main Editor/Preview area */}
         <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+          {/* Welcome Page when no tabs are open */}
+          {tabs.tabs.length === 0 ? (
+            <WelcomePage
+              isDarkMode={isDarkMode}
+              onNewDiagram={handleNewDiagram}
+              onNewMarkdown={handleNewMarkdown}
+              onOpenFolder={workspace.openFolder}
+              onOpenFile={handleOpenFile}
+            />
+          ) : (
+          <>
           {/* Editor Section - collapsible on desktop, tab-based on mobile */}
         <div
           className={`
@@ -768,6 +896,8 @@ const App: React.FC = () => {
                 content={code}
                 isDarkMode={isDarkMode}
                 theme={markdownTheme}
+                filePath={tabs.activeTab.filePath}
+                onEditDiagram={handleEditDiagramFromMarkdown}
               />
             ) : (
               /* Diagram Preview - for diagram tabs */
@@ -836,6 +966,8 @@ const App: React.FC = () => {
             )}
           </div>
         </div>
+        </>
+          )}
         </div>
       </div>
 

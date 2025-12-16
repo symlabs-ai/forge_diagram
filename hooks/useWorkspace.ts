@@ -24,10 +24,14 @@ interface UseWorkspaceReturn {
   refreshFiles: () => Promise<void>;
   readFile: (file: FileNode) => Promise<string>;
   writeFile: (file: FileNode, content: string) => Promise<void>;
+  createFile: (parentPath: string | null, name: string, content: string) => Promise<string | null>;
+  renameFile: (file: FileNode, newName: string) => Promise<boolean>;
+  deleteFile: (file: FileNode) => Promise<boolean>;
   searchFiles: (query: string) => Promise<SearchResult[]>;
   getFileByPath: (path: string) => FileNode | null;
   reopenLastWorkspace: () => Promise<boolean>;
   hasStoredWorkspace: boolean;
+  updateDiagramInMarkdown: (filePath: string, diagramIndex: number, newCode: string) => Promise<boolean>;
 }
 
 // Cache for file contents
@@ -459,14 +463,7 @@ export function useWorkspace(): UseWorkspaceReturn {
     throw new Error(`Cannot write file: ${file.path}`);
   }, [workspace]);
 
-  // Search in files
-  const searchFiles = useCallback(async (query: string): Promise<SearchResult[]> => {
-    if (!workspace || !query.trim()) return [];
-
-    return searchInFiles(workspace.files, query, readFile);
-  }, [workspace, readFile]);
-
-  // Get file by path
+  // Get file by path (defined early because createFile depends on it)
   const getFileByPath = useCallback((path: string): FileNode | null => {
     if (!workspace) return null;
 
@@ -484,6 +481,205 @@ export function useWorkspace(): UseWorkspaceReturn {
     return findInNodes(workspace.files);
   }, [workspace]);
 
+  // Create new file in workspace
+  // Returns the new file's path (not FileNode, because state may not have updated yet)
+  const createFile = useCallback(async (parentPath: string | null, name: string, content: string): Promise<string | null> => {
+    if (!workspace) return null;
+
+    // For virtual workspaces, we can't create real files
+    if (workspace.isVirtual) {
+      setError('Cannot create files in read-only workspace');
+      return null;
+    }
+
+    if (!workspace.handle) return null;
+
+    try {
+      // Find parent directory handle
+      let parentHandle: FileSystemDirectoryHandle = workspace.handle;
+
+      if (parentPath) {
+        // Navigate to parent folder
+        const pathParts = parentPath.split('/').filter(Boolean);
+        for (const part of pathParts) {
+          parentHandle = await parentHandle.getDirectoryHandle(part);
+        }
+      }
+
+      // Create the file
+      const fileHandle = await parentHandle.getFileHandle(name, { create: true });
+
+      // Write initial content
+      await writeFileContent(fileHandle, content);
+
+      // Refresh files to update the tree
+      await refreshFiles();
+
+      // Return the path (not FileNode, because workspace state hasn't updated yet in this closure)
+      const newPath = parentPath ? `${parentPath}/${name}` : name;
+      return newPath;
+    } catch (e) {
+      setError((e as Error).message);
+      return null;
+    }
+  }, [workspace, refreshFiles]);
+
+  // Rename file or folder
+  const renameFile = useCallback(async (file: FileNode, newName: string): Promise<boolean> => {
+    if (!workspace) return false;
+
+    // For virtual workspaces, we can't rename real files
+    if (workspace.isVirtual) {
+      setError('Cannot rename files in read-only workspace');
+      return false;
+    }
+
+    if (!workspace.handle) return false;
+
+    try {
+      // Get parent path
+      const pathParts = file.path.split('/');
+      const oldName = pathParts.pop()!;
+      const parentPath = pathParts.join('/');
+
+      // Navigate to parent folder
+      let parentHandle: FileSystemDirectoryHandle = workspace.handle;
+      if (parentPath) {
+        for (const part of parentPath.split('/').filter(Boolean)) {
+          parentHandle = await parentHandle.getDirectoryHandle(part);
+        }
+      }
+
+      if (file.type === 'folder') {
+        // For folders, we need to recursively copy and delete
+        // This is complex, so for now just show error
+        setError('Folder renaming not yet supported');
+        return false;
+      } else {
+        // For files: read content, create new file, write content, delete old file
+        const oldHandle = await parentHandle.getFileHandle(oldName);
+        const content = await readFileContent(oldHandle);
+
+        // Create new file with new name
+        const newHandle = await parentHandle.getFileHandle(newName, { create: true });
+        await writeFileContent(newHandle, content);
+
+        // Delete old file
+        await parentHandle.removeEntry(oldName);
+
+        // Update cache
+        contentCache.delete(file.path);
+        const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+        contentCache.set(newPath, content);
+      }
+
+      // Refresh files to update the tree
+      await refreshFiles();
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    }
+  }, [workspace, refreshFiles]);
+
+  // Delete file or folder
+  const deleteFile = useCallback(async (file: FileNode): Promise<boolean> => {
+    if (!workspace) return false;
+
+    // For virtual workspaces, we can't delete real files
+    if (workspace.isVirtual) {
+      setError('Cannot delete files in read-only workspace');
+      return false;
+    }
+
+    if (!workspace.handle) return false;
+
+    try {
+      // Get parent path
+      const pathParts = file.path.split('/');
+      const name = pathParts.pop()!;
+      const parentPath = pathParts.join('/');
+
+      // Navigate to parent folder
+      let parentHandle: FileSystemDirectoryHandle = workspace.handle;
+      if (parentPath) {
+        for (const part of parentPath.split('/').filter(Boolean)) {
+          parentHandle = await parentHandle.getDirectoryHandle(part);
+        }
+      }
+
+      // Delete the entry (works for both files and folders)
+      // For folders, { recursive: true } is needed to delete non-empty folders
+      await parentHandle.removeEntry(name, { recursive: file.type === 'folder' });
+
+      // Clear cache
+      contentCache.delete(file.path);
+
+      // Refresh files to update the tree
+      await refreshFiles();
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    }
+  }, [workspace, refreshFiles]);
+
+  // Search in files
+  const searchFiles = useCallback(async (query: string): Promise<SearchResult[]> => {
+    if (!workspace || !query.trim()) return [];
+
+    return searchInFiles(workspace.files, query, readFile);
+  }, [workspace, readFile]);
+
+  // Update a diagram in a markdown file
+  const updateDiagramInMarkdown = useCallback(async (
+    filePath: string,
+    diagramIndex: number,
+    newCode: string
+  ): Promise<boolean> => {
+    const file = getFileByPath(filePath);
+    if (!file) {
+      setError(`File not found: ${filePath}`);
+      return false;
+    }
+
+    try {
+      // Read current content
+      const content = await readFile(file);
+
+      // Replace the diagram at the specified index
+      const regex = /```[ \t]*(mermaid|plantuml|puml)[ \t]*\n?([\s\S]*?)```/gi;
+      let currentIndex = 0;
+      let replaced = false;
+
+      const newContent = content.replace(regex, (match, lang) => {
+        if (currentIndex === diagramIndex) {
+          currentIndex++;
+          replaced = true;
+          return `\`\`\`${lang}\n${newCode}\n\`\`\``;
+        }
+        currentIndex++;
+        return match;
+      });
+
+      if (!replaced) {
+        setError(`Diagram #${diagramIndex + 1} not found in ${filePath}`);
+        return false;
+      }
+
+      // Write updated content
+      await writeFile(file, newContent);
+
+      // Clear cache for this file to ensure fresh read
+      contentCache.delete(filePath);
+
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    }
+  }, [getFileByPath, readFile, writeFile]);
+
   return {
     workspace,
     isLoading,
@@ -495,9 +691,13 @@ export function useWorkspace(): UseWorkspaceReturn {
     refreshFiles,
     readFile,
     writeFile,
+    createFile,
+    renameFile,
+    deleteFile,
     searchFiles,
     getFileByPath,
     reopenLastWorkspace,
     hasStoredWorkspace,
+    updateDiagramInMarkdown,
   };
 }

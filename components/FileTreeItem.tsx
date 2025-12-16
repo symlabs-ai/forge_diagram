@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileNode } from '../types';
 import { getFileIcon } from '../utils/fileSystemUtils';
 
@@ -8,6 +8,12 @@ interface FileTreeItemProps {
   isDarkMode: boolean;
   selectedPath: string | null;
   onSelect: (node: FileNode) => void;
+  expandAll?: boolean | null; // null = user controlled, true = expand all, false = collapse all
+  editingPath?: string | null;
+  onStartEditing?: (path: string) => void;
+  onRename?: (file: FileNode, newName: string) => void;
+  onDelete?: (file: FileNode) => void;
+  forceExpandPaths?: Set<string>; // Paths that should be forcibly expanded
 }
 
 // File type icons
@@ -74,16 +80,62 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
   level,
   isDarkMode,
   selectedPath,
-  onSelect
+  onSelect,
+  expandAll = null,
+  editingPath = null,
+  onStartEditing,
+  onRename,
+  onDelete,
+  forceExpandPaths
 }) => {
-  const [isOpen, setIsOpen] = useState(level < 2); // Auto-expand first 2 levels
+  // Start collapsed by default (only root level slightly open for visibility)
+  const [isOpen, setIsOpen] = useState(false);
+  const [editValue, setEditValue] = useState(node.name);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isFolder = node.type === 'folder';
   const isSelected = selectedPath === node.path;
+  const isEditing = editingPath === node.path;
   const paddingLeft = 8 + level * 16;
+
+  // React to expandAll changes from parent
+  useEffect(() => {
+    if (expandAll !== null && isFolder) {
+      setIsOpen(expandAll);
+    }
+  }, [expandAll, isFolder]);
+
+  // React to forceExpandPaths - expand if this folder is in the set
+  useEffect(() => {
+    if (forceExpandPaths?.has(node.path) && isFolder) {
+      setIsOpen(true);
+    }
+  }, [forceExpandPaths, node.path, isFolder]);
+
+  // Reset edit value when editing starts and select filename (without extension)
+  useEffect(() => {
+    if (isEditing) {
+      setEditValue(node.name);
+      // Focus and select filename portion after a small delay
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          // Select just the filename without extension
+          const dotIndex = node.name.lastIndexOf('.');
+          if (dotIndex > 0) {
+            inputRef.current.setSelectionRange(0, dotIndex);
+          } else {
+            inputRef.current.select();
+          }
+        }
+      }, 10);
+    }
+  }, [isEditing, node.name]);
 
   const handleClick = () => {
     if (isFolder) {
       setIsOpen(!isOpen);
+      // Also select the folder (for creating files inside it)
+      onSelect(node);
     } else {
       onSelect(node);
     }
@@ -92,6 +144,39 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
   const handleDoubleClick = () => {
     if (!isFolder) {
       onSelect(node);
+    }
+  };
+
+  // Handle F2 key for rename, Delete key for delete
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'F2' && isSelected && onStartEditing) {
+      e.preventDefault();
+      onStartEditing(node.path);
+    }
+    if (e.key === 'Delete' && isSelected && onDelete) {
+      e.preventDefault();
+      onDelete(node);
+    }
+  };
+
+  // Handle rename submission
+  const handleRenameSubmit = () => {
+    if (onRename && editValue.trim()) {
+      // Always call onRename - it handles both renamed and unchanged cases
+      // (unchanged case is needed for newly created files that should still open)
+      onRename(node, editValue.trim());
+    } else if (onStartEditing) {
+      // Cancel if empty name
+      onStartEditing('');
+    }
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleRenameSubmit();
+    } else if (e.key === 'Escape') {
+      setEditValue(node.name);
+      if (onStartEditing) onStartEditing('');
     }
   };
 
@@ -110,6 +195,8 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
         style={{ paddingLeft: `${paddingLeft}px` }}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
+        onKeyDown={handleKeyDown}
+        tabIndex={isSelected ? 0 : -1}
       >
         {/* Expand/collapse icon for folders */}
         {isFolder ? (
@@ -129,8 +216,25 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
           )}
         </span>
 
-        {/* Name */}
-        <span className="truncate text-sm">{node.name}</span>
+        {/* Name or edit input */}
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleRenameSubmit}
+            onKeyDown={handleRenameKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className={`flex-1 px-1 py-0.5 text-sm rounded border ${
+              isDarkMode
+                ? 'bg-slate-600 border-slate-500 text-white'
+                : 'bg-white border-gray-300 text-gray-900'
+            }`}
+          />
+        ) : (
+          <span className="truncate text-sm">{node.name}</span>
+        )}
       </div>
 
       {/* Children */}
@@ -144,6 +248,12 @@ export const FileTreeItem: React.FC<FileTreeItemProps> = ({
               isDarkMode={isDarkMode}
               selectedPath={selectedPath}
               onSelect={onSelect}
+              expandAll={expandAll}
+              editingPath={editingPath}
+              onStartEditing={onStartEditing}
+              onRename={onRename}
+              onDelete={onDelete}
+              forceExpandPaths={forceExpandPaths}
             />
           ))}
         </div>

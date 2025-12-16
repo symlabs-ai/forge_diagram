@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { DiagramTab, TabsState, MAX_TABS, TabType } from '../types';
+import { DiagramTab, TabsState, MAX_TABS, TabType, LinkedDiagramSource } from '../types';
 import { INITIAL_CODE } from '../utils/mermaidUtils';
 
 const TABS_STORAGE_KEY = 'forge-draw-tabs';
@@ -29,10 +29,11 @@ interface CreateTabOptions {
   code?: string;
   type?: TabType;
   filePath?: string;
+  linkedSource?: LinkedDiagramSource;
 }
 
 function createNewTab(options: CreateTabOptions = {}): DiagramTab {
-  const { name, code, type = 'diagram', filePath } = options;
+  const { name, code, type = 'diagram', filePath, linkedSource } = options;
   const defaultCode = type === 'markdown' ? INITIAL_MARKDOWN : INITIAL_CODE;
 
   return {
@@ -43,6 +44,7 @@ function createNewTab(options: CreateTabOptions = {}): DiagramTab {
     createdAt: Date.now(),
     type,
     filePath,
+    linkedSource,
   };
 }
 
@@ -89,19 +91,23 @@ export interface AddTabOptions {
   type?: TabType;
   name?: string;
   filePath?: string;
+  linkedSource?: LinkedDiagramSource;
 }
 
 export interface UseTabsReturn {
   tabs: DiagramTab[];
-  activeTab: DiagramTab;
+  activeTab: DiagramTab | null;
   activeTabId: string;
   addTab: (options?: AddTabOptions | string) => void; // string for backwards compatibility
+  addLinkedTab: (code: string, linkedSource: LinkedDiagramSource) => void; // For diagrams from markdown
   closeTab: (id: string) => void;
   selectTab: (id: string) => void;
   renameTab: (id: string, name: string) => void;
-  updateTabCode: (id: string, code: string) => void;
+  updateTabCode: (id: string, code: string, markDirty?: boolean) => void;
+  markTabClean: (id: string) => void;
   updateTabType: (id: string, type: TabType) => void;
   canAddTab: boolean;
+  findLinkedTab: (filePath: string, diagramIndex: number) => DiagramTab | undefined;
 }
 
 export function useTabs(initialCode?: string): UseTabsReturn {
@@ -123,7 +129,7 @@ export function useTabs(initialCode?: string): UseTabsReturn {
     saveTabsToStorage(state);
   }, [state]);
 
-  const activeTab = state.tabs.find(t => t.id === state.activeTabId) || state.tabs[0];
+  const activeTab = state.tabs.find(t => t.id === state.activeTabId) || state.tabs[0] || null;
   const canAddTab = state.tabs.length < MAX_TABS;
 
   const addTab = useCallback((options?: AddTabOptions | string) => {
@@ -140,6 +146,7 @@ export function useTabs(initialCode?: string): UseTabsReturn {
               ? `Markdown ${prev.tabs.filter(t => t.type === 'markdown').length + 1}.md`
               : `Diagram ${prev.tabs.filter(t => t.type === 'diagram').length + 1}`),
             filePath: options?.filePath,
+            linkedSource: options?.linkedSource,
           };
 
       const newTab = createNewTab(opts);
@@ -150,13 +157,65 @@ export function useTabs(initialCode?: string): UseTabsReturn {
     });
   }, [canAddTab]);
 
+  // Add a tab linked to a diagram in a markdown file
+  const addLinkedTab = useCallback((code: string, linkedSource: LinkedDiagramSource) => {
+    if (!canAddTab) return;
+
+    // Check if a tab for this linked diagram already exists
+    const existingTab = state.tabs.find(t =>
+      t.linkedSource?.filePath === linkedSource.filePath &&
+      t.linkedSource?.diagramIndex === linkedSource.diagramIndex
+    );
+
+    if (existingTab) {
+      // Tab already exists, just select it
+      setState(prev => ({
+        ...prev,
+        activeTabId: existingTab.id,
+      }));
+      return;
+    }
+
+    // Create a name based on file name and diagram index
+    const fileName = linkedSource.filePath.split('/').pop() || 'Unknown';
+    const diagramNum = linkedSource.diagramIndex + 1;
+    const diagramType = linkedSource.diagramType === 'mermaid' ? 'Mermaid' : 'PlantUML';
+    const name = `${fileName} - ${diagramType} #${diagramNum}`;
+
+    setState(prev => {
+      const newTab = createNewTab({
+        name,
+        code,
+        type: 'diagram',
+        linkedSource,
+      });
+      return {
+        tabs: [...prev.tabs, newTab],
+        activeTabId: newTab.id,
+      };
+    });
+  }, [canAddTab, state.tabs]);
+
+  // Find a tab linked to a specific diagram
+  const findLinkedTab = useCallback((filePath: string, diagramIndex: number): DiagramTab | undefined => {
+    return state.tabs.find(t =>
+      t.linkedSource?.filePath === filePath &&
+      t.linkedSource?.diagramIndex === diagramIndex
+    );
+  }, [state.tabs]);
+
   const closeTab = useCallback((id: string) => {
     setState(prev => {
-      // Don't close the last tab
-      if (prev.tabs.length <= 1) return prev;
-
       const tabIndex = prev.tabs.findIndex(t => t.id === id);
       const newTabs = prev.tabs.filter(t => t.id !== id);
+
+      // If no tabs left, return empty state
+      if (newTabs.length === 0) {
+        return {
+          tabs: [],
+          activeTabId: '',
+        };
+      }
 
       // If closing active tab, select adjacent tab
       let newActiveId = prev.activeTabId;
@@ -188,11 +247,20 @@ export function useTabs(initialCode?: string): UseTabsReturn {
     }));
   }, []);
 
-  const updateTabCode = useCallback((id: string, code: string) => {
+  const updateTabCode = useCallback((id: string, code: string, markDirty: boolean = true) => {
     setState(prev => ({
       ...prev,
       tabs: prev.tabs.map(t =>
-        t.id === id ? { ...t, code, isDirty: true } : t
+        t.id === id ? { ...t, code, isDirty: markDirty } : t
+      ),
+    }));
+  }, []);
+
+  const markTabClean = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      tabs: prev.tabs.map(t =>
+        t.id === id ? { ...t, isDirty: false } : t
       ),
     }));
   }, []);
@@ -211,11 +279,14 @@ export function useTabs(initialCode?: string): UseTabsReturn {
     activeTab,
     activeTabId: state.activeTabId,
     addTab,
+    addLinkedTab,
     closeTab,
     selectTab,
     renameTab,
     updateTabCode,
+    markTabClean,
     updateTabType,
     canAddTab,
+    findLinkedTab,
   };
 }

@@ -100,6 +100,14 @@ export interface AppSettings {
 // Tab system types
 export type TabType = 'diagram' | 'markdown';
 
+// Link info for diagrams extracted from markdown files
+export interface LinkedDiagramSource {
+  filePath: string;           // Path of the .md file containing this diagram
+  diagramIndex: number;       // Index of the diagram in the file (0, 1, 2...)
+  diagramType: 'mermaid' | 'plantuml';
+  originalCode: string;       // Original code for comparison/conflict detection
+}
+
 export interface DiagramTab {
   id: string;
   name: string;
@@ -108,6 +116,7 @@ export interface DiagramTab {
   createdAt: number;
   type: TabType; // 'diagram' for mermaid/plantuml, 'markdown' for .md files
   filePath?: string; // Optional path if opened from workspace
+  linkedSource?: LinkedDiagramSource; // Link to diagram in markdown file
 }
 
 export interface TabsState {

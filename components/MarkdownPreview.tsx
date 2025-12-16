@@ -2,16 +2,19 @@ import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { isPlantUML, renderPlantUML } from '../utils/plantumlUtils';
 import { MarkdownTheme, generateMarkdownCSS } from '../utils/markdownThemes';
 
-interface MarkdownPreviewProps {
-  content: string;
-  isDarkMode: boolean;
-  theme?: MarkdownTheme;
-}
-
 interface DiagramBlock {
   id: string;
   type: 'mermaid' | 'plantuml';
   code: string;
+  index: number;  // Index of this diagram in the markdown file
+}
+
+interface MarkdownPreviewProps {
+  content: string;
+  isDarkMode: boolean;
+  theme?: MarkdownTheme;
+  filePath?: string;  // Path of the markdown file (for linking diagrams)
+  onEditDiagram?: (diagram: DiagramBlock, filePath: string) => void;  // Callback for double-click
 }
 
 // Detect if code content looks like a mermaid diagram
@@ -51,12 +54,15 @@ function extractDiagrams(markdown: string): { html: string; diagrams: DiagramBlo
   const normalized = markdown.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   // First pass: Extract explicitly tagged mermaid/plantuml code blocks
+  // Supports both ```plantuml\n<code>``` and ```plantuml <code on same line>```
+  // Use [ \t]* instead of \s* to avoid consuming newlines prematurely
   let processed = normalized.replace(
-    /```\s*(mermaid|plantuml|puml)\s*\n([\s\S]*?)```/gi,
+    /```[ \t]*(mermaid|plantuml|puml)[ \t]*\n?([\s\S]*?)```/gi,
     (_, lang, code) => {
+      const index = diagramCounter;
       const id = `diagram-${diagramCounter++}`;
       const type = lang.toLowerCase() === 'mermaid' ? 'mermaid' : 'plantuml';
-      diagrams.push({ id, type, code: code.trim() });
+      diagrams.push({ id, type, code: code.trim(), index });
       return `\n<div class="diagram-placeholder" data-diagram-id="${id}"></div>\n`;
     }
   );
@@ -68,14 +74,16 @@ function extractDiagrams(markdown: string): { html: string; diagrams: DiagramBlo
       const trimmedCode = code.trim();
 
       if (isMermaidContent(trimmedCode)) {
+        const index = diagramCounter;
         const id = `diagram-${diagramCounter++}`;
-        diagrams.push({ id, type: 'mermaid', code: trimmedCode });
+        diagrams.push({ id, type: 'mermaid', code: trimmedCode, index });
         return `\n<div class="diagram-placeholder" data-diagram-id="${id}"></div>\n`;
       }
 
       if (isPlantUMLContent(trimmedCode)) {
+        const index = diagramCounter;
         const id = `diagram-${diagramCounter++}`;
-        diagrams.push({ id, type: 'plantuml', code: trimmedCode });
+        diagrams.push({ id, type: 'plantuml', code: trimmedCode, index });
         return `\n<div class="diagram-placeholder" data-diagram-id="${id}"></div>\n`;
       }
 
@@ -274,7 +282,8 @@ function parseMarkdown(markdown: string): string {
 const DiagramRenderer: React.FC<{
   diagram: DiagramBlock;
   isDarkMode: boolean;
-}> = ({ diagram, isDarkMode }) => {
+  onDoubleClick?: () => void;
+}> = ({ diagram, isDarkMode, onDoubleClick }) => {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -363,13 +372,17 @@ const DiagramRenderer: React.FC<{
   return (
     <div
       ref={containerRef}
-      className="diagram-container flex justify-center p-4 bg-white dark:bg-slate-800 rounded-lg my-4 overflow-auto border border-gray-200 dark:border-slate-600"
+      className={`diagram-container w-full p-4 bg-white dark:bg-slate-800 rounded-lg my-4 overflow-auto border border-gray-200 dark:border-slate-600 ${
+        onDoubleClick ? 'cursor-pointer hover:ring-2 hover:ring-indigo-400 dark:hover:ring-indigo-500 transition-shadow' : ''
+      }`}
+      onDoubleClick={onDoubleClick}
+      title={onDoubleClick ? 'Double-click to edit this diagram' : undefined}
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
 };
 
-export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDarkMode, theme }) => {
+export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDarkMode, theme, filePath, onEditDiagram }) => {
   const { html, diagrams } = useMemo(() => {
     const extracted = extractDiagrams(content || '');
     return {
@@ -412,12 +425,15 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDar
           .markdown-preview-themed .diagram-container {
             display: flex;
             justify-content: center;
+            width: 100%;
             padding: 1rem;
             margin: 1rem 0;
             border-radius: 0.5rem;
             overflow: auto;
           }
           .markdown-preview-themed .diagram-container svg {
+            display: block;
+            width: 100%;
             max-width: 100%;
             height: auto;
           }
@@ -427,7 +443,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDar
           {diagrams.length === 0 ? (
             <div dangerouslySetInnerHTML={{ __html: html }} />
           ) : (
-            <MarkdownWithDiagrams html={html} diagrams={diagrams} isDarkMode={isDarkMode} />
+            <MarkdownWithDiagrams html={html} diagrams={diagrams} isDarkMode={isDarkMode} filePath={filePath} onEditDiagram={onEditDiagram} />
           )}
         </div>
       </div>
@@ -566,7 +582,12 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDar
           border-radius: 0.5em;
           margin: 1em 0;
         }
+        .markdown-preview .diagram-container {
+          width: 100%;
+        }
         .markdown-preview .diagram-container svg {
+          display: block;
+          width: 100%;
           max-width: 100%;
           height: auto;
         }
@@ -577,7 +598,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, isDar
         {diagrams.length === 0 ? (
           <div dangerouslySetInnerHTML={{ __html: html }} />
         ) : (
-          <MarkdownWithDiagrams html={html} diagrams={diagrams} isDarkMode={isDarkMode} />
+          <MarkdownWithDiagrams html={html} diagrams={diagrams} isDarkMode={isDarkMode} filePath={filePath} onEditDiagram={onEditDiagram} />
         )}
       </div>
     </div>
@@ -589,7 +610,9 @@ const MarkdownWithDiagrams: React.FC<{
   html: string;
   diagrams: DiagramBlock[];
   isDarkMode: boolean;
-}> = ({ html, diagrams, isDarkMode }) => {
+  filePath?: string;
+  onEditDiagram?: (diagram: DiagramBlock, filePath: string) => void;
+}> = ({ html, diagrams, isDarkMode, filePath, onEditDiagram }) => {
   // Split HTML by diagram placeholders
   const parts = html.split(/<div class="diagram-placeholder" data-diagram-id="([^"]+)"><\/div>/);
 
@@ -609,7 +632,12 @@ const MarkdownWithDiagrams: React.FC<{
       const diagram = diagrams.find(d => d.id === diagramId);
       if (diagram) {
         elements.push(
-          <DiagramRenderer key={diagram.id} diagram={diagram} isDarkMode={isDarkMode} />
+          <DiagramRenderer
+            key={diagram.id}
+            diagram={diagram}
+            isDarkMode={isDarkMode}
+            onDoubleClick={filePath && onEditDiagram ? () => onEditDiagram(diagram, filePath) : undefined}
+          />
         );
       }
     }
