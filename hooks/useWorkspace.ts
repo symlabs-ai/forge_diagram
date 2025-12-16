@@ -18,6 +18,7 @@ interface UseWorkspaceReturn {
   isLoading: boolean;
   error: string | null;
   isSupported: boolean;
+  isVirtual: boolean;
   openFolder: () => Promise<void>;
   openFolderFallback: (files: FileList) => Promise<void>;
   closeWorkspace: () => void;
@@ -32,6 +33,7 @@ interface UseWorkspaceReturn {
   reopenLastWorkspace: () => Promise<boolean>;
   hasStoredWorkspace: boolean;
   updateDiagramInMarkdown: (filePath: string, diagramIndex: number, newCode: string) => Promise<boolean>;
+  invalidateCache: (path: string) => void;
 }
 
 // Cache for file contents
@@ -411,12 +413,53 @@ export function useWorkspace(): UseWorkspaceReturn {
     try {
       const files = await readDirectoryRecursive(workspace.handle);
       setWorkspace(prev => prev ? { ...prev, files } : null);
+      console.log('[useWorkspace] Files refreshed');
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setIsLoading(false);
     }
   }, [workspace]);
+
+  // Auto-refresh workspace when window gains focus (detect external file/folder changes)
+  // Use a ref to track last refresh time to avoid rapid consecutive refreshes
+  const lastRefreshRef = useRef<number>(0);
+  const REFRESH_DEBOUNCE_MS = 1000; // Minimum 1 second between refreshes
+
+  useEffect(() => {
+    if (!workspace || !workspace.handle || workspace.isVirtual) return;
+
+    const debouncedRefresh = () => {
+      const now = Date.now();
+      if (now - lastRefreshRef.current < REFRESH_DEBOUNCE_MS) {
+        console.log('[useWorkspace] Skipping refresh (debounced)');
+        return;
+      }
+      lastRefreshRef.current = now;
+      console.log('[useWorkspace] Refreshing files...');
+      refreshFiles();
+    };
+
+    const handleFocus = () => {
+      console.log('[useWorkspace] Window focused');
+      debouncedRefresh();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[useWorkspace] Tab visible');
+        debouncedRefresh();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [workspace, refreshFiles]);
 
   // Read file content
   const readFile = useCallback(async (file: FileNode): Promise<string> => {
@@ -425,17 +468,18 @@ export function useWorkspace(): UseWorkspaceReturn {
       return contentCache.get(file.path)!;
     }
 
+    // For File System Access API - ALWAYS read from disk (prioritize over file.content)
+    if (file.handle && 'getFile' in file.handle) {
+      console.log('[useWorkspace] Reading file from disk handle:', file.path);
+      const content = await readFileContent(file.handle as FileSystemFileHandle);
+      contentCache.set(file.path, content);
+      return content;
+    }
+
     // For virtual workspace, content is already in the node
     if (file.content !== undefined) {
       contentCache.set(file.path, file.content);
       return file.content;
-    }
-
-    // For File System Access API
-    if (file.handle && 'getFile' in file.handle) {
-      const content = await readFileContent(file.handle as FileSystemFileHandle);
-      contentCache.set(file.path, content);
-      return content;
     }
 
     throw new Error(`Cannot read file: ${file.path}`);
@@ -680,11 +724,17 @@ export function useWorkspace(): UseWorkspaceReturn {
     }
   }, [getFileByPath, readFile, writeFile]);
 
+  // Invalidate cache for a specific file (used by FileWatcher)
+  const invalidateCache = useCallback((path: string) => {
+    contentCache.delete(path);
+  }, []);
+
   return {
     workspace,
     isLoading,
     error,
     isSupported,
+    isVirtual: workspace?.isVirtual ?? true,
     openFolder,
     openFolderFallback,
     closeWorkspace,
@@ -699,5 +749,6 @@ export function useWorkspace(): UseWorkspaceReturn {
     reopenLastWorkspace,
     hasStoredWorkspace,
     updateDiagramInMarkdown,
+    invalidateCache,
   };
 }

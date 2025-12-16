@@ -17,6 +17,7 @@ import { Sidebar } from './components/Sidebar';
 import { FileExplorer } from './components/FileExplorer';
 import { SearchPanel } from './components/SearchPanel';
 import { MarkdownPreview } from './components/MarkdownPreview';
+import { MilkdownEditor } from './components/MilkdownEditor';
 import { WelcomePage } from './components/WelcomePage';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { useTabs } from './hooks/useTabs';
@@ -35,6 +36,8 @@ import { useHistory } from './hooks/useHistory';
 import { useDiagramStorage } from './hooks/useDiagramStorage';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useVisualHistory, NodeTransform } from './hooks/useVisualHistory';
+import { useFileWatcher } from './hooks/useFileWatcher';
+import { FileConflictDialog } from './components/FileConflictDialog';
 
 const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +52,7 @@ const App: React.FC = () => {
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
   const [showEmbedDialog, setShowEmbedDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [fileConflict, setFileConflict] = useState<{ path: string; handle: FileSystemFileHandle } | null>(null);
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<MermaidTheme>(themes[0]);
@@ -64,6 +68,12 @@ const App: React.FC = () => {
 
   // Editor panel collapsed state
   const [isEditorCollapsed, setIsEditorCollapsed] = useState(false);
+
+  // Spellcheck state (persisted in localStorage)
+  const [spellcheckEnabled, setSpellcheckEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('forge-diagram-spellcheck');
+    return saved !== null ? JSON.parse(saved) : false; // Default: disabled
+  });
 
   // Share notification state
   const [shareNotification, setShareNotification] = useState<string | null>(null);
@@ -99,6 +109,68 @@ const App: React.FC = () => {
   const workspace = useWorkspace();
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 
+  // File watcher for external changes (like VS Code behavior)
+  const fileWatcher = useFileWatcher({
+    onFileChanged: useCallback((path: string, newContent: string) => {
+      // File changed externally and has no unsaved changes - auto-reload
+      console.log('[App] File changed externally, auto-reloading:', path);
+      // Invalidate the content cache so reopening the file reads from disk
+      workspace.invalidateCache(path);
+      // Update the tab content without marking dirty (it's a reload, not a user edit)
+      const tab = tabs.tabs.find(t => t.filePath === path);
+      if (tab) {
+        tabs.updateTabCode(tab.id, newContent, false);
+      }
+    }, [tabs, workspace]),
+
+    onFileConflict: useCallback((info) => {
+      // File changed externally but has unsaved changes - show dialog
+      console.log('[App] File conflict detected:', info.path);
+      setFileConflict({ path: info.path, handle: info.handle });
+    }, []),
+
+    hasUnsavedChanges: useCallback((path: string) => {
+      // Check if the tab for this file has unsaved changes
+      const tab = tabs.tabs.find(t => t.filePath === path);
+      return tab?.isDirty ?? false;
+    }, [tabs.tabs]),
+
+    enabled: !workspace.isVirtual, // Only enable for real file system workspaces
+  });
+
+  // Handle file conflict dialog actions
+  const handleFileConflictReload = useCallback(async () => {
+    if (!fileConflict) return;
+
+    try {
+      const file = await fileConflict.handle.getFile();
+      const newContent = await file.text();
+
+      // Invalidate the content cache so reopening the file reads from disk
+      workspace.invalidateCache(fileConflict.path);
+
+      // Update the tab content
+      const tab = tabs.tabs.find(t => t.filePath === fileConflict.path);
+      if (tab) {
+        tabs.updateTabCode(tab.id, newContent, false); // false = don't mark dirty
+        tabs.markTabClean(tab.id);
+      }
+
+      // Update watcher metadata
+      fileWatcher.markFileSaved(fileConflict.path);
+    } catch (e) {
+      console.error('[App] Error reloading file:', e);
+    }
+
+    setFileConflict(null);
+  }, [fileConflict, tabs, fileWatcher, workspace]);
+
+  const handleFileConflictKeep = useCallback(() => {
+    // User chose to keep their changes - just close the dialog
+    // The file will be overwritten on next save
+    setFileConflict(null);
+  }, []);
+
   // Handle file selection from explorer
   const handleFileSelect = useCallback(async (file: FileNode) => {
     // Always update selected path (for folder selection when creating files)
@@ -108,6 +180,8 @@ const App: React.FC = () => {
     if (file.type !== 'file') return;
 
     try {
+      // Invalidate cache to ensure we read fresh from disk
+      workspace.invalidateCache(file.path);
       const content = await workspace.readFile(file);
 
       // Detect file type based on extension
@@ -115,8 +189,10 @@ const App: React.FC = () => {
       const tabType = isMarkdown ? 'markdown' : 'diagram';
 
       // Open file in a new tab or update current tab
-      const existingTab = tabs.tabs.find(t => t.name === file.name);
+      const existingTab = tabs.tabs.find(t => t.filePath === file.path);
       if (existingTab) {
+        // Update existing tab with fresh content from disk
+        tabs.updateTabCode(existingTab.id, content, false);
         tabs.selectTab(existingTab.id);
       } else {
         tabs.addTab({
@@ -126,10 +202,13 @@ const App: React.FC = () => {
           filePath: file.path,
         });
       }
+
+      // Register file with watcher for external change detection
+      fileWatcher.watchFile(file);
     } catch (e) {
       console.error('Error opening file:', e);
     }
-  }, [workspace, tabs]);
+  }, [workspace, tabs, fileWatcher]);
 
   // Handle search result click
   const handleSearchResultClick = useCallback(async (file: FileNode, line: number) => {
@@ -218,6 +297,92 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks-deps
   }, [tabs.activeTabId]);
 
+  // Sync history when tab code changes externally (e.g., FileWatcher reload)
+  useEffect(() => {
+    const tabCode = tabs.activeTab?.code || '';
+    // Only sync if the tab code differs from history (external change)
+    if (tabCode && tabCode !== history.value) {
+      console.log('[App] External code change detected, syncing history');
+      history.clear(tabCode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs.activeTab?.code]);
+
+  // Track tabs to unwatch files when tabs are closed
+  const prevTabsRef = useRef<typeof tabs.tabs>([]);
+  useEffect(() => {
+    const prevTabs = prevTabsRef.current;
+    const currentTabs = tabs.tabs;
+
+    // Find tabs that were closed (present in prev but not in current)
+    const closedTabs = prevTabs.filter(
+      prev => prev.filePath && !currentTabs.some(curr => curr.filePath === prev.filePath)
+    );
+
+    // Unwatch closed file tabs
+    closedTabs.forEach(tab => {
+      if (tab.filePath) {
+        fileWatcher.unwatchFile(tab.filePath);
+      }
+    });
+
+    prevTabsRef.current = currentTabs;
+  }, [tabs.tabs, fileWatcher]);
+
+  // Register files with watcher and refresh content after workspace restore (handles page reload)
+  const workspaceFilesLoadedRef = useRef(false);
+  useEffect(() => {
+    const files = workspace.workspace?.files;
+
+    // Only run once when workspace files become available
+    if (!files || files.length === 0 || workspaceFilesLoadedRef.current) {
+      return;
+    }
+    workspaceFilesLoadedRef.current = true;
+
+    // Refresh all file tabs from disk (localStorage saves placeholder, not actual content)
+    const refreshFileTabs = async () => {
+      // Capture current values to avoid stale closures
+      const currentTabs = tabs.tabs;
+      console.log('[App] refreshFileTabs: checking', currentTabs.length, 'tabs');
+
+      for (const tab of currentTabs) {
+        if (tab.filePath) {
+          console.log('[App] refreshFileTabs: processing tab', tab.filePath, 'current code:', tab.code.substring(0, 50));
+          const fileNode = workspace.getFileByPath(tab.filePath);
+          console.log('[App] refreshFileTabs: fileNode found?', !!fileNode, 'has handle?', !!(fileNode?.handle));
+          if (fileNode && fileNode.handle) {
+            // Register with file watcher
+            fileWatcher.watchFile(fileNode);
+
+            // Always refresh content from disk for file-backed tabs
+            try {
+              console.log('[App] refreshFileTabs: reading fresh content from disk');
+              workspace.invalidateCache(tab.filePath);
+              const freshContent = await workspace.readFile(fileNode);
+              console.log('[App] refreshFileTabs: freshContent length:', freshContent.length);
+              // Always update for file-backed tabs (code might be placeholder or stale)
+              console.log('[App] Loading tab content from disk:', tab.filePath);
+              tabs.updateTabCode(tab.id, freshContent, false);
+            } catch (e) {
+              console.error('[App] Error refreshing tab content:', tab.filePath, e);
+            }
+          } else if (fileNode && !fileNode.handle) {
+            // Virtual workspace - try to use file.content
+            console.warn('[App] refreshFileTabs: No file handle available (virtual workspace). Re-open folder for live file sync.');
+            if (fileNode.content !== undefined) {
+              console.log('[App] refreshFileTabs: Using virtual workspace content');
+              tabs.updateTabCode(tab.id, fileNode.content, false);
+            }
+          }
+        }
+      }
+    };
+
+    refreshFileTabs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.workspace?.files]);
+
   // Ref for the zoom wrapper instance
   const transformComponentRef = useRef<ReactZoomPanPinchRef | null>(null);
 
@@ -278,9 +443,18 @@ const App: React.FC = () => {
   }, [code]);
 
   const handleCodeChange = React.useCallback((newCode: string) => {
-    console.log('[DEBUG] handleCodeChange called, newCode length:', newCode.length);
+    // Skip if code hasn't actually changed (avoids marking dirty on initial load/sync)
+    const currentTabCode = tabs.activeTab?.code;
+    console.log('[handleCodeChange] called - newCode length:', newCode.length, 'currentTabCode length:', currentTabCode?.length);
+    console.log('[handleCodeChange] codes match:', newCode === currentTabCode);
+
+    if (newCode === currentTabCode) {
+      console.log('[handleCodeChange] Skipping - no change');
+      return;
+    }
+
+    console.log('[handleCodeChange] Updating tab code - will mark dirty');
     history.setValue(newCode);
-    console.log('[DEBUG] after setValue, canUndo:', history.canUndo);
     tabs.updateTabCode(tabs.activeTabId, newCode);
     lastActionRef.current = 'code';
     setError(null);
@@ -433,6 +607,8 @@ const App: React.FC = () => {
           await workspace.writeFile(fileNode, activeTab.code);
           // Mark tab as not dirty after save
           tabs.markTabClean(activeTab.id);
+          // Update watcher metadata to avoid false positive change detection
+          fileWatcher.markFileSaved(activeTab.filePath);
           console.log(`[Save] File saved: ${activeTab.filePath}`);
           return;
         } catch (e) {
@@ -444,7 +620,7 @@ const App: React.FC = () => {
 
     // Otherwise show save dialog for localStorage save
     setShowSaveDialog(true);
-  }, [tabs, workspace]);
+  }, [tabs, workspace, fileWatcher]);
   const handleLoad = useCallback(() => {
     storage.refresh();
     setShowLoadDialog(true);
@@ -810,6 +986,23 @@ const App: React.FC = () => {
                       {showMinimap ? 'ON' : 'OFF'}
                     </button>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span>Spellcheck</span>
+                    <button
+                      onClick={() => {
+                        const newValue = !spellcheckEnabled;
+                        setSpellcheckEnabled(newValue);
+                        localStorage.setItem('forge-diagram-spellcheck', JSON.stringify(newValue));
+                      }}
+                      className={`px-2 py-1 rounded text-xs ${
+                        spellcheckEnabled
+                          ? 'bg-green-500 text-white'
+                          : isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}
+                    >
+                      {spellcheckEnabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -847,6 +1040,7 @@ const App: React.FC = () => {
             onSave={handleSave}
             onUndo={handleUndo}
             onRedo={handleRedo}
+            spellcheck={spellcheckEnabled}
           />
         </div>
 
@@ -890,14 +1084,16 @@ const App: React.FC = () => {
         >
 
           <div className="h-full w-full shadow-xl rounded-lg bg-white dark:bg-slate-800 overflow-hidden flex flex-col relative">
-            {/* Markdown Preview - for markdown tabs */}
+            {/* Markdown WYSIWYG Editor - for markdown tabs */}
             {tabs.activeTab.type === 'markdown' ? (
-              <MarkdownPreview
+              <MilkdownEditor
                 content={code}
+                onChange={handleCodeChange}
                 isDarkMode={isDarkMode}
-                theme={markdownTheme}
                 filePath={tabs.activeTab.filePath}
                 onEditDiagram={handleEditDiagramFromMarkdown}
+                theme={markdownTheme}
+                spellcheck={spellcheckEnabled}
               />
             ) : (
               /* Diagram Preview - for diagram tabs */
@@ -1008,6 +1204,13 @@ const App: React.FC = () => {
         onExportSvg={exportHook.exportSvg}
         onExportMarkdown={exportHook.exportMarkdown}
         onCopySvg={exportHook.copySvg}
+      />
+      <FileConflictDialog
+        isOpen={fileConflict !== null}
+        filePath={fileConflict?.path || ''}
+        isDarkMode={isDarkMode}
+        onReload={handleFileConflictReload}
+        onOverwrite={handleFileConflictKeep}
       />
 
       {/* Share notification toast */}

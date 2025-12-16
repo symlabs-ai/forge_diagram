@@ -1,8 +1,8 @@
-# Mermaid: Cache de Layout em classDiagram
+TESTE9_EXTERNO--Mermaid: Cache de Layout em classDiagram
 
 > Este arquivo também documenta armadilhas de sintaxe do parser do Mermaid encontradas no projeto.
-
-## Problema
+teste
+## Problemasssssxxxxx
 
 Ao alternar a direção (`direction TD` / `direction LR`) em um `classDiagram`, o Mermaid não re-renderiza o layout corretamente após a primeira mudança. O diagrama fica "travado" em uma orientação.
 
@@ -18,7 +18,7 @@ Ao alternar a direção (`direction TD` / `direction LR`) em um `classDiagram`, 
 
 - **`classDiagram` com `direction TD/LR`**: A direção é uma diretiva interna. O Mermaid cacheia o layout baseado no tipo do diagrama (`classDiagram`), ignorando mudanças na diretiva `direction`.
 
-## Diagnóstico
+## Diagnósticoo
 
 Logs mostraram que mesmo com:
 - IDs de SVG diferentes

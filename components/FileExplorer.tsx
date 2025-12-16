@@ -514,6 +514,24 @@ Write your content here...
         </div>
       </div>
 
+      {/* Virtual workspace warning */}
+      {workspace.isVirtual && (
+        <div className={`mx-2 mb-2 p-2 rounded text-xs ${
+          isDarkMode
+            ? 'bg-yellow-900/50 text-yellow-200 border border-yellow-700'
+            : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+        }`}>
+          <div className="font-medium mb-1">⚠️ Modo offline</div>
+          <div className="opacity-80">
+            Seu browser não suporta File System Access API.
+            Mudanças externas não serão detectadas.
+          </div>
+          <div className="mt-1 opacity-60">
+            Use Chrome/Edge para sincronização em tempo real.
+          </div>
+        </div>
+      )}
+
       {/* File tree */}
       <div className="flex-1 overflow-auto py-1">
         {isLoading ? (

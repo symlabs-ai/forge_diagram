@@ -54,9 +54,15 @@ function migrateTab(tab: DiagramTab): DiagramTab {
   if (!migratedTab.type) {
     migratedTab.type = 'diagram';
   }
-  // Ensure code is always a string
+  // Ensure code is always a string (but allow placeholder for file-backed tabs)
   if (typeof migratedTab.code !== 'string') {
     migratedTab.code = migratedTab.type === 'markdown' ? INITIAL_MARKDOWN : INITIAL_CODE;
+  }
+  // Keep placeholder for file-backed tabs - will be loaded from disk
+  // Legacy tabs might have stale content, mark them for refresh too
+  if (migratedTab.filePath && migratedTab.code !== '__PENDING_LOAD_FROM_DISK__') {
+    console.log('[useTabs] Marking file-backed tab for refresh:', migratedTab.filePath);
+    migratedTab.code = '__PENDING_LOAD_FROM_DISK__';
   }
   return migratedTab;
 }
@@ -80,7 +86,18 @@ function loadTabsFromStorage(): TabsState | null {
 
 function saveTabsToStorage(state: TabsState): void {
   try {
-    localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify(state));
+    // For file-backed tabs, don't save the code - it will be read fresh from disk on reload
+    const stateToSave: TabsState = {
+      ...state,
+      tabs: state.tabs.map(tab => {
+        if (tab.filePath) {
+          // Save placeholder for file-backed tabs - content will be loaded from disk
+          return { ...tab, code: '__PENDING_LOAD_FROM_DISK__' };
+        }
+        return tab;
+      }),
+    };
+    localStorage.setItem(TABS_STORAGE_KEY, JSON.stringify(stateToSave));
   } catch (e) {
     console.error('Failed to save tabs to storage:', e);
   }
@@ -248,6 +265,10 @@ export function useTabs(initialCode?: string): UseTabsReturn {
   }, []);
 
   const updateTabCode = useCallback((id: string, code: string, markDirty: boolean = true) => {
+    console.log('[useTabs] updateTabCode called - id:', id, 'markDirty:', markDirty, 'code length:', code.length);
+    if (markDirty) {
+      console.trace('[useTabs] Stack trace for markDirty:');
+    }
     setState(prev => ({
       ...prev,
       tabs: prev.tabs.map(t =>

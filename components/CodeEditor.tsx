@@ -16,6 +16,7 @@ interface CodeEditorProps {
   onSave?: () => void;
   error: string | null;
   isDarkMode: boolean;
+  spellcheck?: boolean;
 }
 
 // Mermaid syntax validation usando a API do mermaid
@@ -119,6 +120,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onSave,
   error,
   isDarkMode,
+  spellcheck = false,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -230,8 +232,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
       // Update listener
       EditorView.updateListener.of(handleChange),
+
+      // Spellcheck
+      EditorView.contentAttributes.of({ spellcheck: spellcheck ? "true" : "false" }),
     ];
-  }, [isDarkMode, handleChange]);
+  }, [isDarkMode, handleChange, spellcheck]);
 
   // Inicializa o editor
   useEffect(() => {
@@ -286,21 +291,35 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     // 2. E o código externo é diferente do que está no editor
     // Isso evita re-sincronizar quando a mudança veio do próprio editor
     if (code !== lastExternalCode.current && code !== currentCode) {
-      console.log('[CodeEditor] External code changed, syncing...');
       isInternalChange.current = true;
 
-      // Preserva a posição do cursor se possível
-      const cursorPos = view.state.selection.main.head;
-      const newCursorPos = Math.min(cursorPos, code.length);
+      // Check if CodeMirror has focus
+      const hasFocus = view.hasFocus;
 
-      view.dispatch({
-        changes: {
-          from: 0,
-          to: currentCode.length,
-          insert: code,
-        },
-        selection: { anchor: newCursorPos },
-      });
+      if (hasFocus) {
+        // If we have focus, preserve cursor position
+        const cursorPos = view.state.selection.main.head;
+        const newCursorPos = Math.min(cursorPos, code.length);
+
+        view.dispatch({
+          changes: {
+            from: 0,
+            to: currentCode.length,
+            insert: code,
+          },
+          selection: { anchor: newCursorPos },
+        });
+      } else {
+        // If we don't have focus (e.g., Milkdown has focus), update silently without affecting selection
+        view.dispatch({
+          changes: {
+            from: 0,
+            to: currentCode.length,
+            insert: code,
+          },
+        });
+      }
+
       isInternalChange.current = false;
     }
 
